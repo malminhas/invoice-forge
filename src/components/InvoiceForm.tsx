@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -11,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Invoice, InvoiceFormData, defaultInvoiceData } from "@/types/invoice";
 import { FileText, Plus, Trash2, Save } from "lucide-react";
 import { addInvoice, updateInvoice, callGenerateInvoiceApi } from "@/services/invoiceService";
+import { Image, Upload } from "lucide-react";
 
 interface InvoiceFormProps {
   initialData?: Invoice;
@@ -27,14 +27,13 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  // Handle text input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Handle numeric input changes
   const handleNumericChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     const numValue = parseFloat(value);
@@ -47,14 +46,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     }
   };
 
-  // Handle services array changes
   const handleServiceChange = (index: number, value: string) => {
     const updatedServices = [...formData.services];
     updatedServices[index] = value;
     setFormData(prev => ({ ...prev, services: updatedServices }));
   };
 
-  // Add a new service field
   const addServiceField = () => {
     setFormData(prev => ({
       ...prev,
@@ -62,7 +59,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     }));
   };
 
-  // Remove a service field
   const removeServiceField = (index: number) => {
     if (formData.services.length <= 1) return;
     
@@ -70,13 +66,24 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     setFormData(prev => ({ ...prev, services: updatedServices }));
   };
 
-  // Handle form submission
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setImagePreview(base64String);
+        setFormData(prev => ({ ...prev, icon_name: file.name }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     
     try {
-      // Validate required fields
       const requiredFields = [
         "client_name", "company_name", "invoice_number",
         "invoice_date", "hourly_rate", "vat_rate"
@@ -92,19 +99,16 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         return;
       }
       
-      // Validate services
       if (formData.services.some(service => !service.trim())) {
         toast.error("Please fill in all service descriptions or remove empty ones");
         setIsSubmitting(false);
         return;
       }
       
-      // Process form data
       const result = isEditing 
         ? await updateInvoice(formData as Invoice)
         : await addInvoice(formData as Invoice);
       
-      // Navigate back to invoice list
       navigate("/");
     } catch (error) {
       console.error("Error saving invoice:", error);
@@ -114,16 +118,13 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     }
   };
 
-  // Generate PDF
   const handleGeneratePdf = async () => {
     setIsGeneratingPdf(true);
     
     try {
-      // First save the invoice if it's new
       let invoiceToGenerate: Invoice;
       
       if (!isEditing) {
-        // Validate required fields first
         const requiredFields = [
           "client_name", "company_name", "invoice_number",
           "invoice_date", "hourly_rate", "vat_rate"
@@ -144,17 +145,13 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         invoiceToGenerate = await updateInvoice(formData as Invoice);
       }
       
-      // Generate the PDF
       const pdfUrl = await callGenerateInvoiceApi(invoiceToGenerate);
       
-      // Update the invoice with the PDF URL
       const updatedInvoice = { ...invoiceToGenerate, pdf_url: pdfUrl };
       await updateInvoice(updatedInvoice);
       
-      // Open the PDF in a new tab
       window.open(pdfUrl, "_blank");
       
-      // Navigate back to the invoice list
       navigate("/");
     } catch (error) {
       console.error("Error generating PDF:", error);
@@ -186,7 +183,44 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         <form onSubmit={handleSubmit}>
           <CardContent className="pt-6">
             <div className="space-y-6">
-              {/* Company Information */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3 text-invoice-dark-purple">Template Settings</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="font_name">Font Name</Label>
+                    <Input
+                      id="font_name"
+                      name="font_name"
+                      value={formData.font_name}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="icon_upload">Company Icon</Label>
+                    <div className="flex flex-col gap-2">
+                      <Input
+                        id="icon_upload"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="cursor-pointer"
+                      />
+                      {imagePreview && (
+                        <div className="relative w-32 h-32 border rounded-lg overflow-hidden">
+                          <img
+                            src={imagePreview}
+                            alt="Company icon preview"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <Separator />
+              
               <div>
                 <h3 className="text-lg font-semibold mb-3 text-invoice-dark-purple">Company Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -252,7 +286,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               
               <Separator />
               
-              {/* Client Information */}
               <div>
                 <h3 className="text-lg font-semibold mb-3 text-invoice-dark-purple">Client Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -281,7 +314,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               
               <Separator />
               
-              {/* Invoice Details */}
               <div>
                 <h3 className="text-lg font-semibold mb-3 text-invoice-dark-purple">Invoice Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -343,7 +375,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               
               <Separator />
               
-              {/* Services */}
               <div>
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="text-lg font-semibold text-invoice-dark-purple">Services</h3>
@@ -382,7 +413,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               
               <Separator />
               
-              {/* Bank Details */}
               <div>
                 <h3 className="text-lg font-semibold mb-3 text-invoice-dark-purple">Bank Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -412,33 +442,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                       value={formData.bank_address}
                       onChange={handleInputChange}
                       rows={2}
-                    />
-                  </div>
-                </div>
-              </div>
-              
-              <Separator />
-              
-              {/* Template Settings */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3 text-invoice-dark-purple">Template Settings</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="font_name">Font Name</Label>
-                    <Input
-                      id="font_name"
-                      name="font_name"
-                      value={formData.font_name}
-                      onChange={handleInputChange}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="icon_name">Icon Name</Label>
-                    <Input
-                      id="icon_name"
-                      name="icon_name"
-                      value={formData.icon_name}
-                      onChange={handleInputChange}
                     />
                   </div>
                 </div>
