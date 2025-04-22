@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { Invoice } from "@/types/invoice";
 
@@ -106,20 +105,20 @@ export const generateInvoicePdf = async (invoice: Invoice): Promise<string> => {
 // For a real implementation, this would call the actual backend API
 export const callGenerateInvoiceApi = async (invoice: Invoice): Promise<string> => {
   try {
-    // In a real implementation, this would be:
-    // const response = await fetch("http://localhost:8000/generate-invoice?format=pdf", {
-    //   method: "POST",
-    //   headers: {
-    //     "Content-Type": "application/json",
-    //   },
-    //   body: JSON.stringify(invoice),
-    // });
-    // if (!response.ok) throw new Error("API call failed");
-    // const blob = await response.blob();
-    // return URL.createObjectURL(blob);
-    
     // For now, simulate API call
-    return await generateInvoicePdf(invoice);
+    const pdfData = await generateInvoicePdf(invoice);
+    
+    // Convert the base64 data to a Blob
+    const byteCharacters = atob(pdfData.split(',')[1]);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'application/pdf' });
+    
+    // Create a URL for the Blob
+    return URL.createObjectURL(blob);
   } catch (error) {
     console.error("API call failed:", error);
     toast.error("Failed to call invoice generation API");

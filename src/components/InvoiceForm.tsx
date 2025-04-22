@@ -11,6 +11,7 @@ import { Invoice, InvoiceFormData, defaultInvoiceData } from "@/types/invoice";
 import { FileText, Plus, Trash2, Save } from "lucide-react";
 import { addInvoice, updateInvoice, callGenerateInvoiceApi } from "@/services/invoiceService";
 import { Image, Upload } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 interface InvoiceFormProps {
   initialData?: Invoice;
@@ -150,8 +151,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       const updatedInvoice = { ...invoiceToGenerate, pdf_url: pdfUrl };
       await updateInvoice(updatedInvoice);
       
-      window.open(pdfUrl, "_blank");
-      
+      toast.success("PDF generated successfully!");
       navigate("/");
     } catch (error) {
       console.error("Error generating PDF:", error);
@@ -457,24 +457,32 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             >
               Cancel
             </Button>
-            <div className="flex gap-2">
-              <Button 
-                type="submit" 
-                disabled={isSubmitting || isGeneratingPdf}
-                className="bg-invoice-dark-purple hover:bg-invoice-purple"
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {isSubmitting ? "Saving..." : "Save Invoice"}
-              </Button>
-              <Button 
-                type="button"
-                onClick={handleGeneratePdf}
-                disabled={isSubmitting || isGeneratingPdf}
-                className="bg-invoice-purple hover:bg-invoice-dark-purple"
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                {isGeneratingPdf ? "Generating..." : "Generate PDF"}
-              </Button>
+            <div className="flex flex-col sm:flex-row gap-2 items-end sm:items-center">
+              {isGeneratingPdf && (
+                <div className="flex items-center gap-2 min-w-[200px]">
+                  <Progress value={75} className="w-full" />
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">Generating...</span>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Button 
+                  type="submit" 
+                  disabled={isSubmitting || isGeneratingPdf}
+                  className="bg-invoice-dark-purple hover:bg-invoice-purple"
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {isSubmitting ? "Saving..." : "Save Invoice"}
+                </Button>
+                <Button 
+                  type="button"
+                  onClick={handleGeneratePdf}
+                  disabled={isSubmitting || isGeneratingPdf}
+                  className="bg-invoice-purple hover:bg-invoice-dark-purple"
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  {isGeneratingPdf ? "Generating..." : "Generate PDF"}
+                </Button>
+              </div>
             </div>
           </CardFooter>
         </form>

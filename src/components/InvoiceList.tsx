@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -36,7 +35,6 @@ const InvoiceList: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Load invoices from storage
   useEffect(() => {
     const loadInvoices = () => {
       const loadedInvoices = getInvoices();
@@ -45,7 +43,6 @@ const InvoiceList: React.FC = () => {
     
     loadInvoices();
     
-    // Add event listener to refresh when coming back to this page
     window.addEventListener("focus", loadInvoices);
     
     return () => {
@@ -53,24 +50,34 @@ const InvoiceList: React.FC = () => {
     };
   }, []);
 
-  // Filter invoices based on search query
   const filteredInvoices = invoices.filter(invoice => 
     invoice.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     invoice.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     invoice.invoice_number.toString().includes(searchQuery)
   );
 
-  // Handle creating a new invoice
   const handleCreateInvoice = () => {
     navigate("/invoices/create");
   };
 
-  // Handle editing an invoice
   const handleEditInvoice = (id: string) => {
     navigate(`/invoices/edit/${id}`);
   };
 
-  // Handle viewing an invoice
+  const handleDownloadPdf = (invoice: Invoice) => {
+    if (!invoice.pdf_url) {
+      toast.error("No PDF available. Generate a PDF first.");
+      return;
+    }
+
+    const link = document.createElement('a');
+    link.href = invoice.pdf_url;
+    link.download = `invoice-${invoice.invoice_number}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleViewInvoice = (invoice: Invoice) => {
     if (invoice.pdf_url) {
       window.open(invoice.pdf_url, "_blank");
@@ -79,7 +86,6 @@ const InvoiceList: React.FC = () => {
     }
   };
 
-  // Handle deleting an invoice
   const handleDeleteInvoice = async (id: string) => {
     if (isDeleting) return;
     
@@ -96,7 +102,6 @@ const InvoiceList: React.FC = () => {
     }
   };
 
-  // Format currency
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-GB', { 
       style: 'currency', 
@@ -104,7 +109,6 @@ const InvoiceList: React.FC = () => {
     }).format(amount);
   };
 
-  // Calculate the total for an invoice
   const calculateTotal = (invoice: Invoice) => {
     const hours = invoice.services.length;
     const subtotal = hours * invoice.hourly_rate;
@@ -201,9 +205,9 @@ const InvoiceList: React.FC = () => {
                               Edit
                             </DropdownMenuItem>
                             {invoice.pdf_url && (
-                              <DropdownMenuItem onClick={() => handleViewInvoice(invoice)}>
+                              <DropdownMenuItem onClick={() => handleDownloadPdf(invoice)}>
                                 <Download className="mr-2 h-4 w-4" />
-                                View PDF
+                                Download PDF
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuItem 
