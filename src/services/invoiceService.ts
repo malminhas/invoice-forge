@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { Invoice } from "@/types/invoice";
 
@@ -87,10 +86,8 @@ export const deleteInvoice = (id: string): void => {
 // Generate an invoice PDF
 export const generateInvoicePdf = async (invoice: Invoice): Promise<string> => {
   try {
-    // Create a clean copy of the invoice data to send to the API
     const invoiceData = {
       ...invoice,
-      // Make sure numeric values are properly formatted as numbers
       hourly_rate: Number(invoice.hourly_rate),
       vat_rate: Number(invoice.vat_rate),
       invoice_number: Number(invoice.invoice_number),
@@ -99,9 +96,7 @@ export const generateInvoicePdf = async (invoice: Invoice): Promise<string> => {
 
     console.log("Preparing to send invoice data to API:", invoiceData);
     
-    // Use a local endpoint instead of the production one
-    // This assumes you're running a local server at http://localhost:3000
-    const endpoint = 'http://localhost:3000/generate-pdf';
+    const endpoint = localStorage.getItem('pdfEndpoint') || 'http://localhost:8000/generate-pdf';
     console.log("Using endpoint:", endpoint);
     
     const response = await fetch(endpoint, {
@@ -110,7 +105,7 @@ export const generateInvoicePdf = async (invoice: Invoice): Promise<string> => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(invoiceData),
-      mode: 'cors' // Explicitly set CORS mode
+      mode: 'cors'
     });
 
     console.log("Response status:", response.status);
