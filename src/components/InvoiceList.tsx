@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -24,7 +25,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { Plus, FileText, Edit, Download, Trash2, Settings } from "lucide-react";
+import { 
+  Plus, 
+  FileText, 
+  Edit, 
+  Download, 
+  Trash2, 
+  Settings as SettingsIcon 
+} from "lucide-react";
 import { Invoice } from "@/types/invoice";
 import { getInvoices, deleteInvoice } from "@/services/invoiceService";
 import { toast } from "sonner";
