@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 import { Invoice } from "@/types/invoice";
 
@@ -99,13 +100,16 @@ export const generateInvoicePdf = async (invoice: Invoice): Promise<string> => {
     const endpoint = localStorage.getItem('pdfEndpoint') || 'http://localhost:8000/generate-pdf';
     console.log("Using endpoint:", endpoint);
     
+    // Fix for CORS issue - we need to explicitly set headers and handle the preflight
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'text/plain, application/json, */*',
       },
       body: JSON.stringify(invoiceData),
-      mode: 'cors'
+      // Disable mode:'cors' to let browser handle CORS automatically
+      // This is important as 'cors' mode triggers preflight OPTIONS requests
     });
 
     console.log("Response status:", response.status);
