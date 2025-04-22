@@ -87,15 +87,21 @@ export const deleteInvoice = (id: string): void => {
 // Generate an invoice PDF
 export const generateInvoicePdf = async (invoice: Invoice): Promise<string> => {
   try {
-    // This would be a real API call in production
-    // For now, we'll simulate a successful API call with a timeout
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Simulate the PDF URL (in a real app, this would come from the API)
-    const mockPdfUrl = `data:application/pdf;base64,JVBERi0xLjcKJeLjz9MKNSAwIG9iago8PAovRmlsdGVyIC9GbGF0ZURlY29kZQovTGVuZ3RoIDM4Cj4+CnN0cmVhbQp4nCvkMlAwUDC1NNUzMVGwMDHUszRSKErlCtfiyuMK5AIAXQ8GCgplbmRzdHJlYW0KZW5kb2JqCjQgMCBvYmoKPDwKL1R5cGUgL1BhZ2UKL01lZGlhQm94IFswIDAgNTk1IDg0Ml0KL1Jlc291cmNlcyA8PAovRm9udCA8PAovRjEgMSAwIFIKL0YyIDIgMCBSCj4+Cj4+Ci9Db250ZW50cyA1IDAgUgovUGFyZW50IDMgMCBSCj4+CmVuZG9iagozIDAgb2JqCjw8Ci9UeXBlIC9QYWdlcwovQ291bnQgMQovS2lkcyBbNCAwIFJdCj4+CmVuZG9iagoyIDAgb2JqCjw8Ci9UeXBlIC9Gb250Ci9TdWJ0eXBlIC9UeXBlMQovQmFzZUZvbnQgL0hlbHZldGljYS1Cb2xkCj4+CmVuZG9iagoxIDAgb2JqCjw8Ci9UeXBlIC9Gb250Ci9TdWJ0eXBlIC9UeXBlMQovQmFzZUZvbnQgL0hlbHZldGljYQo+PgplbmRvYmoKNiAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwovUGFnZXMgMyAwIFIKPj4KZW5kb2JqCnhyZWYKMCA3CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDM0MyAwMDAwMCBuIAowMDAwMDAwMjc2IDAwMDAwIG4gCjAwMDAwMDAyMTMgMDAwMDAgbiAKMDAwMDAwMDEwMyAwMDAwMCBuIAowMDAwMDAwMDE1IDAwMDAwIG4gCjAwMDAwMDA0MTAgMDAwMDAgbiAKdHJhaWxlcgo8PAovU2l6ZSA3Ci9Sb290IDYgMCBSCi9JRCBbPDg5MUJESUI4MTM1MUE1NDlDNDhCOUFFNzczQzM2QkVGPiA8ODkxQkRJQjgxMzUxQTU0OUM0OEI5QUU3NzNDMzZCRUY+XQo+PgpzdGFydHhyZWYKNDU5CiUlRU9GCg==`;
-    
+    const response = await fetch('https://invoiceforgebackend.diorama.dev/generate-pdf', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(invoice)
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to generate PDF');
+    }
+
+    const data = await response.text();
     toast.success("Invoice PDF generated successfully");
-    return mockPdfUrl;
+    return data;
   } catch (error) {
     console.error("Error generating invoice PDF:", error);
     toast.error("Failed to generate invoice PDF");
