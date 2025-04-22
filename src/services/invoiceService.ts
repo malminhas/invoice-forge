@@ -87,19 +87,35 @@ export const deleteInvoice = (id: string): void => {
 // Generate an invoice PDF
 export const generateInvoicePdf = async (invoice: Invoice): Promise<string> => {
   try {
+    // Create a clean copy of the invoice data to send to the API
+    const invoiceData = {
+      ...invoice,
+      // Make sure numeric values are properly formatted as numbers
+      hourly_rate: Number(invoice.hourly_rate),
+      vat_rate: Number(invoice.vat_rate),
+      invoice_number: Number(invoice.invoice_number),
+      payment_terms_days: Number(invoice.payment_terms_days || 0)
+    };
+
+    console.log("Sending invoice data to API:", invoiceData);
+    
     const response = await fetch('https://invoiceforgebackend.diorama.dev/generate-pdf', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(invoice)
+      body: JSON.stringify(invoiceData),
+      mode: 'cors' // Explicitly set CORS mode
     });
 
     if (!response.ok) {
-      throw new Error('Failed to generate PDF');
+      const errorText = await response.text();
+      console.error("API returned error:", response.status, errorText);
+      throw new Error(`Failed to generate PDF: ${response.status} ${errorText}`);
     }
 
     const data = await response.text();
+    console.log("PDF generation successful, received data length:", data.length);
     toast.success("Invoice PDF generated successfully");
     return data;
   } catch (error) {
@@ -112,8 +128,16 @@ export const generateInvoicePdf = async (invoice: Invoice): Promise<string> => {
 // For a real implementation, this would call the actual backend API
 export const callGenerateInvoiceApi = async (invoice: Invoice): Promise<string> => {
   try {
-    // For now, simulate API call
+    // For debugging
+    console.log("Calling PDF generation API with invoice:", invoice);
+    
+    // Get PDF data from the API
     const pdfData = await generateInvoicePdf(invoice);
+    
+    if (!pdfData || pdfData.length < 100) {
+      console.error("Received invalid PDF data:", pdfData);
+      throw new Error("Invalid PDF data received");
+    }
     
     // Convert the base64 data to a Blob
     const byteCharacters = atob(pdfData.split(',')[1]);
