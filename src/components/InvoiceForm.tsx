@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -31,7 +30,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   
-  // Set image preview when editing an existing invoice that has an icon
   useEffect(() => {
     if (initialData && initialData.icon_data) {
       setImagePreview(initialData.icon_data);
@@ -85,7 +83,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         setFormData(prev => ({ 
           ...prev, 
           icon_name: file.name,
-          icon_data: base64String // Store the image data in the form
+          icon_data: base64String
         }));
       };
       reader.readAsDataURL(file);
@@ -210,13 +208,18 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                   <div className="space-y-2">
                     <Label htmlFor="icon_upload">Company Icon</Label>
                     <div className="flex flex-col gap-2">
-                      <Input
-                        id="icon_upload"
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        className="cursor-pointer"
-                      />
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="icon_upload"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="cursor-pointer"
+                        />
+                        <span className="text-sm text-gray-500">
+                          {formData.icon_name || "No file chosen"}
+                        </span>
+                      </div>
                       {imagePreview && (
                         <div className="relative w-32 h-32 border rounded-lg overflow-hidden">
                           <img
