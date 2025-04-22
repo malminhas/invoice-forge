@@ -87,10 +87,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
+        const fileName = file.name;
         setImagePreview(base64String);
         setFormData(prev => ({ 
           ...prev, 
-          icon_name: file.name,
+          icon_name: fileName,
           icon_data: base64String
         }));
       };
