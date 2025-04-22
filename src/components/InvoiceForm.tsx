@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -29,6 +30,13 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  
+  // Set image preview when editing an existing invoice that has an icon
+  useEffect(() => {
+    if (initialData && initialData.icon_data) {
+      setImagePreview(initialData.icon_data);
+    }
+  }, [initialData]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -74,7 +82,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       reader.onloadend = () => {
         const base64String = reader.result as string;
         setImagePreview(base64String);
-        setFormData(prev => ({ ...prev, icon_name: file.name }));
+        setFormData(prev => ({ 
+          ...prev, 
+          icon_name: file.name,
+          icon_data: base64String // Store the image data in the form
+        }));
       };
       reader.readAsDataURL(file);
     }

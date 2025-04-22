@@ -21,6 +21,7 @@ export interface Invoice {
   column_widths: number[];
   font_name: string;
   icon_name: string;
+  icon_data?: string; // Add this field to store the base64 image data
   pdf_url?: string;
 }
 
