@@ -12,7 +12,7 @@ const EndpointConfig = () => {
     if (savedEndpoint) {
       setEndpoint(savedEndpoint);
     } else {
-      const defaultEndpoint = 'http://localhost:8000/generate-pdf';
+      const defaultEndpoint = 'http://localhost:8000/generate-invoice?format=pdf';
       setEndpoint(defaultEndpoint);
       localStorage.setItem('pdfEndpoint', defaultEndpoint);
     }

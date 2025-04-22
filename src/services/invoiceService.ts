@@ -138,24 +138,9 @@ export const callGenerateInvoiceApi = async (invoice: Invoice): Promise<string> 
     console.log("Calling PDF generation API with invoice:", invoice);
     
     // Get PDF data from the API
-    const pdfData = await generateInvoicePdf(invoice);
+    const pdfUrl = await generateInvoicePdf(invoice);
     
-    if (!pdfData || pdfData.length < 100) {
-      console.error("Received invalid PDF data:", pdfData);
-      throw new Error("Invalid PDF data received");
-    }
-    
-    // Convert the base64 data to a Blob
-    const byteCharacters = atob(pdfData.split(',')[1]);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: 'application/pdf' });
-    
-    // Create a URL for the Blob
-    return URL.createObjectURL(blob);
+    return pdfUrl;
   } catch (error) {
     console.error("API call failed:", error);
     toast.error("Failed to call invoice generation API");
