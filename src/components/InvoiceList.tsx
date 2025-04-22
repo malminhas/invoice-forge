@@ -28,6 +28,7 @@ import { Plus, FileText, Edit, Download, Trash2, Settings } from "lucide-react";
 import { Invoice } from "@/types/invoice";
 import { getInvoices, deleteInvoice } from "@/services/invoiceService";
 import { toast } from "sonner";
+import Settings from "./Settings";
 
 const InvoiceList: React.FC = () => {
   const navigate = useNavigate();
@@ -127,12 +128,15 @@ const InvoiceList: React.FC = () => {
                 Manage and generate your invoices
               </CardDescription>
             </div>
-            <Button 
-              onClick={handleCreateInvoice} 
-              className="bg-white text-invoice-purple hover:bg-gray-100 w-full sm:w-auto"
-            >
-              <Plus className="mr-2 h-4 w-4" /> Create Invoice
-            </Button>
+            <div className="flex items-center gap-2">
+              <Settings />
+              <Button 
+                onClick={handleCreateInvoice} 
+                className="bg-white text-invoice-purple hover:bg-gray-100 w-full sm:w-auto"
+              >
+                <Plus className="mr-2 h-4 w-4" /> Create Invoice
+              </Button>
+            </div>
           </div>
         </CardHeader>
         

@@ -12,7 +12,6 @@ const EndpointConfig = () => {
     if (savedEndpoint) {
       setEndpoint(savedEndpoint);
     } else {
-      // Default to localhost:8000
       const defaultEndpoint = 'http://localhost:8000/generate-pdf';
       setEndpoint(defaultEndpoint);
       localStorage.setItem('pdfEndpoint', defaultEndpoint);
@@ -25,7 +24,7 @@ const EndpointConfig = () => {
   };
 
   return (
-    <div className="p-4 bg-white rounded-lg shadow mb-4">
+    <div>
       <h2 className="text-lg font-semibold mb-2">PDF Endpoint Configuration</h2>
       <div className="flex gap-2">
         <Input

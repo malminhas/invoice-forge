@@ -1,7 +1,7 @@
 
 import React from "react";
 import InvoiceList from "@/components/InvoiceList";
-import EndpointConfig from "@/components/EndpointConfig";
+import Settings from "@/components/Settings";
 
 const InvoicesPage: React.FC = () => {
   return (
@@ -12,7 +12,6 @@ const InvoicesPage: React.FC = () => {
         </div>
       </div>
       <div className="container max-w-6xl py-4">
-        <EndpointConfig />
         <InvoiceList />
       </div>
     </div>
