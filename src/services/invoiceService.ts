@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { Invoice } from "@/types/invoice";
 
@@ -84,9 +83,9 @@ export const deleteInvoice = (id: string): void => {
   }
 };
 
-// Generate an invoice PDF
 export const generateInvoicePdf = async (invoice: Invoice): Promise<string> => {
   try {
+    // Clean and prepare the invoice data
     const invoiceData = {
       ...invoice,
       hourly_rate: Number(invoice.hourly_rate),
@@ -97,19 +96,15 @@ export const generateInvoicePdf = async (invoice: Invoice): Promise<string> => {
 
     console.log("Preparing to send invoice data to API:", invoiceData);
     
-    const endpoint = localStorage.getItem('pdfEndpoint') || 'http://localhost:8000/generate-pdf';
+    const endpoint = localStorage.getItem('pdfEndpoint') || 'http://localhost:8000/generate-invoice?format=pdf';
     console.log("Using endpoint:", endpoint);
     
-    // Fix for CORS issue - we need to explicitly set headers and handle the preflight
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'text/plain, application/json, */*',
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify(invoiceData),
-      // Disable mode:'cors' to let browser handle CORS automatically
-      // This is important as 'cors' mode triggers preflight OPTIONS requests
+      body: JSON.stringify(invoiceData)
     });
 
     console.log("Response status:", response.status);
@@ -120,10 +115,15 @@ export const generateInvoicePdf = async (invoice: Invoice): Promise<string> => {
       throw new Error(`Failed to generate PDF: ${response.status} ${errorText}`);
     }
 
-    const data = await response.text();
-    console.log("PDF generation successful, received data length:", data.length);
+    // Get the blob from the response
+    const blob = await response.blob();
+    
+    // Create a URL for the Blob
+    const url = window.URL.createObjectURL(blob);
+    console.log("PDF generation successful, created blob URL");
+    
     toast.success("Invoice PDF generated successfully");
-    return data;
+    return url;
   } catch (error) {
     console.error("Error generating invoice PDF:", error);
     toast.error("Failed to generate invoice PDF");
