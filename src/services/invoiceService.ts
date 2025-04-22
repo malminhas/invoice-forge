@@ -97,9 +97,14 @@ export const generateInvoicePdf = async (invoice: Invoice): Promise<string> => {
       payment_terms_days: Number(invoice.payment_terms_days || 0)
     };
 
-    console.log("Sending invoice data to API:", invoiceData);
+    console.log("Preparing to send invoice data to API:", invoiceData);
     
-    const response = await fetch('https://invoiceforgebackend.diorama.dev/generate-pdf', {
+    // Use a local endpoint instead of the production one
+    // This assumes you're running a local server at http://localhost:3000
+    const endpoint = 'http://localhost:3000/generate-pdf';
+    console.log("Using endpoint:", endpoint);
+    
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -107,6 +112,8 @@ export const generateInvoicePdf = async (invoice: Invoice): Promise<string> => {
       body: JSON.stringify(invoiceData),
       mode: 'cors' // Explicitly set CORS mode
     });
+
+    console.log("Response status:", response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
