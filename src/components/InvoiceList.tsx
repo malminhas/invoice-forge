@@ -30,18 +30,28 @@ import {
   Edit, 
   Download, 
   Trash2, 
-  Settings as SettingsIcon 
+  Settings as SettingsIcon,
+  ChevronUp,
+  ChevronDown
 } from "lucide-react";
 import { Invoice } from "@/types/invoice";
 import { getInvoices, deleteInvoice } from "@/services/invoiceService";
 import { toast } from "sonner";
 import Settings from "./Settings";
 
+// Define sort types
+type SortField = 'invoice_number' | 'client_name' | 'invoice_date' | 'amount' | 'status';
+type SortDirection = 'asc' | 'desc';
+
 const InvoiceList: React.FC = () => {
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Add sort state
+  const [sortField, setSortField] = useState<SortField>('invoice_number');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   useEffect(() => {
     const loadInvoices = () => {
@@ -58,11 +68,150 @@ const InvoiceList: React.FC = () => {
     };
   }, []);
 
-  const filteredInvoices = invoices.filter(invoice => 
-    invoice.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    invoice.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    invoice.invoice_number.toString().includes(searchQuery)
-  );
+  // Parse date in format like "21.04.25" to a Date object
+  const parseInvoiceDate = (dateString: string) => {
+    const parts = dateString.split('.');
+    // Handle both 2-digit and 4-digit years
+    const year = parseInt(parts[2]);
+    const fullYear = year < 100 ? 2000 + year : year;
+    // Months are 0-indexed in JS Date
+    return new Date(fullYear, parseInt(parts[1]) - 1, parseInt(parts[0]));
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-GB', { 
+      style: 'currency', 
+      currency: 'GBP' 
+    }).format(amount);
+  };
+
+  // A safer version of calculateTotal that handles potential errors
+  const safeCalculateTotal = (invoice: Invoice): number => {
+    try {
+      if (!invoice || !invoice.services || !Array.isArray(invoice.services)) {
+        return 0;
+      }
+      
+      // Calculate based on actual services, not just the length
+      let totalHours = 0;
+      invoice.services.forEach(service => {
+        // Try to extract hour information from service description
+        const hourMatch = service.match(/\((\d+\.?\d*)\s*hour/i);
+        if (hourMatch && hourMatch[1]) {
+          totalHours += parseFloat(hourMatch[1]);
+        } else {
+          // If no hour info found, count as 1 hour
+          totalHours += 1;
+        }
+      });
+      
+      const hourlyRate = typeof invoice.hourly_rate === 'number' ? invoice.hourly_rate : 0;
+      const vatRate = typeof invoice.vat_rate === 'number' ? invoice.vat_rate : 0;
+      
+      const subtotal = totalHours * hourlyRate;
+      const vat = subtotal * (vatRate / 100);
+      return subtotal + vat;
+    } catch (error) {
+      console.error("Error calculating total:", error);
+      return 0;
+    }
+  };
+
+  const calculateTotal = (invoice: Invoice) => {
+    // Use the same calculation method for display as we do for sorting
+    try {
+      if (!invoice || !invoice.services || !Array.isArray(invoice.services)) {
+        return 0;
+      }
+      
+      // Calculate based on actual services, not just the length
+      let totalHours = 0;
+      invoice.services.forEach(service => {
+        // Try to extract hour information from service description
+        const hourMatch = service.match(/\((\d+\.?\d*)\s*hour/i);
+        if (hourMatch && hourMatch[1]) {
+          totalHours += parseFloat(hourMatch[1]);
+        } else {
+          // If no hour info found, count as 1 hour
+          totalHours += 1;
+        }
+      });
+      
+      const subtotal = totalHours * invoice.hourly_rate;
+      const vat = subtotal * (invoice.vat_rate / 100);
+      return subtotal + vat;
+    } catch (error) {
+      // Fall back to simple calculation if there's an error
+      const hours = invoice.services.length;
+      const subtotal = hours * invoice.hourly_rate;
+      const vat = subtotal * (invoice.vat_rate / 100);
+      return subtotal + vat;
+    }
+  };
+
+  // Handle column header click for sorting
+  const handleSort = (field: SortField) => {
+    if (field === sortField) {
+      // Toggle direction if clicking the same field
+      const newDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+      setSortDirection(newDirection);
+    } else {
+      // Default to descending for new sort field
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
+
+  // Apply filtering and sorting
+  const getFilteredAndSortedInvoices = () => {
+    // First filter
+    const filtered = invoices.filter(invoice => 
+      invoice.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      invoice.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      invoice.invoice_number.toString().includes(searchQuery)
+    );
+    
+    // Then sort the filtered list
+    return [...filtered].sort((a, b) => {
+      let comparison = 0;
+      
+      try {
+        switch (sortField) {
+          case 'invoice_number':
+            comparison = a.invoice_number - b.invoice_number;
+            break;
+          case 'client_name':
+            comparison = a.client_name.localeCompare(b.client_name);
+            break;
+          case 'invoice_date':
+            // Parse dates for comparison
+            const dateA = parseInvoiceDate(a.invoice_date);
+            const dateB = parseInvoiceDate(b.invoice_date);
+            comparison = dateA.getTime() - dateB.getTime();
+            break;
+          case 'amount':
+            // Direct calculation for sorting - simplify the logic for amounts
+            const totalA = calculateTotal(a);
+            const totalB = calculateTotal(b);
+            comparison = totalA - totalB;
+            break;
+          case 'status':
+            // Sort by PDF status (PDF Generated comes before Draft)
+            comparison = (a.pdf_url ? 1 : 0) - (b.pdf_url ? 1 : 0);
+            break;
+        }
+      } catch (error) {
+        console.error("Error during sorting:", error);
+        return 0;
+      }
+      
+      // Apply sort direction
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  };
+
+  // Get the sorted and filtered invoices on each render
+  const filteredInvoices = getFilteredAndSortedInvoices();
 
   const handleCreateInvoice = () => {
     navigate("/invoices/create");
@@ -110,19 +259,24 @@ const InvoiceList: React.FC = () => {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-GB', { 
-      style: 'currency', 
-      currency: 'GBP' 
-    }).format(amount);
+  // Render sort indicator
+  const renderSortIndicator = (field: SortField) => {
+    if (sortField !== field) return null;
+    
+    return sortDirection === 'asc' 
+      ? <ChevronUp className="ml-1 h-4 w-4 inline" /> 
+      : <ChevronDown className="ml-1 h-4 w-4 inline" />;
   };
 
-  const calculateTotal = (invoice: Invoice) => {
-    const hours = invoice.services.length;
-    const subtotal = hours * invoice.hourly_rate;
-    const vat = subtotal * (invoice.vat_rate / 100);
-    return subtotal + vat;
+  // Get a class for the active sort column
+  const getSortColumnClass = (field: SortField) => {
+    return field === sortField 
+      ? "bg-invoice-purple/10 font-medium" 
+      : "";
   };
+
+  // Style for sortable column headers
+  const sortableHeaderStyle = "cursor-pointer hover:bg-gray-100 active:bg-gray-200 transition-colors duration-200 select-none relative";
 
   return (
     <div className="container py-8 max-w-6xl">
@@ -175,14 +329,39 @@ const InvoiceList: React.FC = () => {
             </div>
           ) : (
             <div className="rounded-md border overflow-hidden">
-              <Table>
+              <Table key={`${sortField}-${sortDirection}`}>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
-                    <TableHead className="w-[100px]">Invoice #</TableHead>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead 
+                      className={`w-[150px] ${sortableHeaderStyle} ${getSortColumnClass('invoice_number')}`}
+                      onClick={() => handleSort('invoice_number')}
+                    >
+                      Invoice # {renderSortIndicator('invoice_number')}
+                    </TableHead>
+                    <TableHead 
+                      className={`${sortableHeaderStyle} ${getSortColumnClass('client_name')}`}
+                      onClick={() => handleSort('client_name')}
+                    >
+                      Client {renderSortIndicator('client_name')}
+                    </TableHead>
+                    <TableHead 
+                      className={`${sortableHeaderStyle} ${getSortColumnClass('invoice_date')}`}
+                      onClick={() => handleSort('invoice_date')}
+                    >
+                      Date {renderSortIndicator('invoice_date')}
+                    </TableHead>
+                    <TableHead 
+                      className={`${sortableHeaderStyle} ${getSortColumnClass('amount')}`}
+                      onClick={() => handleSort('amount')}
+                    >
+                      Amount {renderSortIndicator('amount')}
+                    </TableHead>
+                    <TableHead 
+                      className={`${sortableHeaderStyle} ${getSortColumnClass('status')}`}
+                      onClick={() => handleSort('status')}
+                    >
+                      Status {renderSortIndicator('status')}
+                    </TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { Invoice } from "@/types/invoice";
+import yaml from 'js-yaml';
 
 // Mock storage as we don't have a backend yet
 const STORAGE_KEY = "invoices";
@@ -34,7 +35,13 @@ export const generateId = (): string => {
 export const addInvoice = (invoice: Invoice): Invoice => {
   try {
     const invoices = getInvoices();
-    const newInvoice = { ...invoice, id: generateId() };
+    const newInvoice = { 
+      ...invoice, 
+      id: generateId(),
+      // Ensure icon data is properly saved
+      icon_name: invoice.icon_name || "",
+      icon_data: invoice.icon_data || null
+    };
     saveInvoices([...invoices, newInvoice]);
     toast.success("Invoice added successfully");
     return newInvoice;
@@ -57,6 +64,11 @@ export const updateInvoice = (invoice: Invoice): Invoice => {
     
     if (index === -1) {
       throw new Error("Invoice not found");
+    }
+    
+    // Ensure icon_data is preserved
+    if (!invoice.icon_data && invoices[index].icon_data) {
+      invoice.icon_data = invoices[index].icon_data;
     }
     
     invoices[index] = invoice;
@@ -144,6 +156,42 @@ export const callGenerateInvoiceApi = async (invoice: Invoice): Promise<string> 
   } catch (error) {
     console.error("API call failed:", error);
     toast.error("Failed to call invoice generation API");
+    throw error;
+  }
+};
+
+// Import settings from a dictionary
+export const importInvoiceSettings = (settings: Record<string, any>): Invoice => {
+  try {
+    // Create a new invoice object using the provided settings
+    const newInvoiceData: Invoice = {
+      client_name: settings.client_name || "",
+      client_address: settings.client_address || "",
+      services: settings.services || [""],
+      payment_terms_days: Number(settings.payment_terms_days) || 30,
+      invoice_number: Number(settings.invoice_number) || 1000,
+      invoice_date: settings.invoice_date || new Date().toLocaleDateString("en-GB"),
+      company_name: settings.company_name || "",
+      hourly_rate: Number(settings.hourly_rate) || 300,
+      vat_rate: Number(settings.vat_rate) || 20,
+      account_number: settings.account_number || "",
+      sort_code: settings.sort_code || "",
+      bank_address: settings.bank_address || "",
+      company_number: settings.company_number || "",
+      vat_number: settings.vat_number || "",
+      registered_address: settings.registered_address || "",
+      email: settings.email || "",
+      contact_number: settings.contact_number || "",
+      column_widths: settings.column_widths || [2.5, 3.5],
+      font_name: settings.font_name || "Calibri",
+      icon_name: settings.icon_name || ""
+    };
+
+    toast.success("Settings imported successfully");
+    return newInvoiceData;
+  } catch (error) {
+    console.error("Error importing settings:", error);
+    toast.error("Failed to import settings");
     throw error;
   }
 };

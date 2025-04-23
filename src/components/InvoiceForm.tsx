@@ -8,10 +8,32 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Invoice, InvoiceFormData, defaultInvoiceData } from "@/types/invoice";
-import { FileText, Plus, Trash2, Save } from "lucide-react";
-import { addInvoice, updateInvoice, callGenerateInvoiceApi } from "@/services/invoiceService";
-import { Image, Upload } from "lucide-react";
+import { FileText, Plus, Trash2, Save, Upload, Image, Download, HelpCircle, FileOutput, Check, ChevronsUpDown } from "lucide-react";
+import { addInvoice, updateInvoice, callGenerateInvoiceApi, importInvoiceSettings } from "@/services/invoiceService";
 import { Progress } from "@/components/ui/progress";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import yaml from 'js-yaml';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+// PDF-compatible fonts
+const pdfFonts = [
+  { name: "Calibri", value: "Calibri" },
+  { name: "Arial", value: "Arial" },
+  { name: "Times New Roman", value: "Times New Roman" },
+  { name: "Helvetica", value: "Helvetica" },
+  { name: "Verdana", value: "Verdana" },
+  { name: "Tahoma", value: "Tahoma" },
+  { name: "Trebuchet MS", value: "Trebuchet MS" },
+  { name: "Georgia", value: "Georgia" },
+  { name: "Garamond", value: "Garamond" },
+  { name: "Courier New", value: "Courier New" },
+];
 
 interface InvoiceFormProps {
   initialData?: Invoice;
@@ -29,6 +51,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   
   useEffect(() => {
     if (initialData) {
@@ -38,7 +61,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       if (initialData.icon_name) {
         setFormData(prev => ({
           ...prev,
-          icon_name: initialData.icon_name
+          icon_name: initialData.icon_name,
+          icon_data: initialData.icon_data
         }));
       }
     }
@@ -46,6 +70,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Handle select input changes (for dropdowns)
+  const handleSelectChange = (name: string, value: string) => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -180,8 +209,280 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     }
   };
 
+  const handleImportSettings = () => {
+    // Import from file - only YAML files supported now
+    fileInputRef.current?.click();
+  };
+  
+  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const yamlString = event.target?.result as string;
+        processImportedSettings(yamlString);
+        
+        // Reset the file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      } catch (error) {
+        console.error("Error reading YAML file:", error);
+        toast.error("Failed to read YAML file: " + (error as Error).message);
+      }
+    };
+    
+    reader.onerror = () => {
+      toast.error("Failed to read the file");
+    };
+    
+    reader.readAsText(file);
+  };
+  
+  const processImportedSettings = (yamlString: string) => {
+    try {
+      // Parse the YAML data
+      const settingsData = yaml.load(yamlString) as Record<string, any>;
+      
+      // Import the settings
+      const importedSettings = importInvoiceSettings(settingsData);
+      
+      // Update the form data
+      setFormData(importedSettings);
+      
+      // Set image preview if available
+      if (settingsData.icon_data) {
+        setImagePreview(settingsData.icon_data);
+      }
+      
+      toast.success("Settings imported successfully");
+    } catch (error) {
+      console.error("Error processing imported settings:", error);
+      toast.error("Failed to process imported settings: " + (error as Error).message);
+    }
+  };
+
+  // Generate random example data
+  const generateExampleData = () => {
+    // Generate random data for the example
+    const randomInvoiceNumber = Math.floor(1000 + Math.random() * 9000);
+    const randomHourlyRate = Math.floor(100 + Math.random() * 500);
+    const randomVatRate = [0, 5, 10, 15, 20, 25][Math.floor(Math.random() * 6)];
+    
+    // Generate a random date in dd.mm.yy format
+    const today = new Date();
+    const randomDays = Math.floor(Math.random() * 60) - 30; // Random date ±30 days from today
+    const randomDate = new Date(today.setDate(today.getDate() + randomDays));
+    const formattedDate = `${randomDate.getDate().toString().padStart(2, '0')}.${(randomDate.getMonth() + 1).toString().padStart(2, '0')}.${randomDate.getFullYear()}`;
+    
+    // Random service descriptions
+    const serviceTypes = ['UI Design', 'Backend Development', 'API Integration', 'AI Consultancy', 'Code Review', 'Database Optimization', 'UX Research', 'DevOps Support'];
+    const randomServices = [];
+    const numServices = 1 + Math.floor(Math.random() * 3); // 1-3 services
+    
+    for (let i = 0; i < numServices; i++) {
+      const serviceType = serviceTypes[Math.floor(Math.random() * serviceTypes.length)];
+      randomServices.push(`${serviceType} ${formattedDate} (${1 + Math.floor(Math.random() * 4)} hour${Math.random() > 0.5 ? 's' : ''})`);
+    }
+    
+    const companyNames = ['Acme Solutions Ltd', 'Zenith Consulting', 'Quantum Innovations', 'Horizon Tech', 'Stellar Systems'];
+    const clientNames = ['John Smith', 'Sarah Johnson', 'Miguel Rodriguez', 'Emma Wilson', 'Hiroshi Tanaka', 'Olivia Chen'];
+    
+    // Generate UK VAT number format
+    const vatNumber = `GB ${Math.floor(100 + Math.random() * 900)} ${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(10 + Math.random() * 90)}`;
+    
+    return {
+      client_name: clientNames[Math.floor(Math.random() * clientNames.length)], 
+      client_address: `${Math.floor(Math.random() * 200)} Oak Street\nLondon\nSW${Math.floor(Math.random() * 10)} ${Math.floor(Math.random() * 10)}AB\nU.K.`, 
+      services: randomServices, 
+      payment_terms_days: [7, 14, 30, 60][Math.floor(Math.random() * 4)], 
+      invoice_number: randomInvoiceNumber, 
+      invoice_date: formattedDate, 
+      company_name: companyNames[Math.floor(Math.random() * companyNames.length)], 
+      company_number: `${Math.floor(10000000 + Math.random() * 90000000)}`, 
+      registered_address: '123 Business Park, Innovation Way, London, EC1A 1BB', 
+      vat_number: vatNumber, 
+      bank_address: 'Example Bank, 1 Finance Street, London, EC2V 7PR', 
+      account_number: `${Math.floor(10000000 + Math.random() * 90000000).toString().padStart(8, '0')}`, 
+      sort_code: `${Math.floor(10 + Math.random() * 90).toString().padStart(2, '0')}-${Math.floor(10 + Math.random() * 90).toString().padStart(2, '0')}-${Math.floor(10 + Math.random() * 90).toString().padStart(2, '0')}`, 
+      email: `contact@${companyNames[Math.floor(Math.random() * companyNames.length)].toLowerCase().replace(/\s+/g, '')}.com`, 
+      contact_number: `+44 7${Math.floor(100 + Math.random() * 900)} ${Math.floor(100000 + Math.random() * 900000)}`, 
+      icon_name: 'CompanyLogo.png', 
+      column_widths: [2.5, 3.5], 
+      font_name: ['Calibri', 'Arial', 'Helvetica', 'Roboto', 'Verdana'][Math.floor(Math.random() * 5)], 
+      hourly_rate: randomHourlyRate, 
+      vat_rate: randomVatRate
+    };
+  };
+
+  // Add a function to show example YAML
+  const showExampleYaml = () => {
+    const exampleData = generateExampleData();
+    
+    // Convert to YAML
+    const exampleYamlStr = yaml.dump(exampleData);
+    
+    // Create a modal or dialog to display the example
+    const modal = document.createElement('dialog');
+    modal.style.padding = '20px';
+    modal.style.borderRadius = '8px';
+    modal.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
+    modal.style.maxWidth = '600px';
+    modal.style.width = '100%';
+    
+    const heading = document.createElement('h3');
+    heading.textContent = 'Example Import YAML Format';
+    heading.style.marginTop = '0';
+    heading.style.marginBottom = '16px';
+    heading.style.fontSize = '18px';
+    heading.style.fontWeight = 'bold';
+    
+    const content = document.createElement('pre');
+    content.textContent = exampleYamlStr;
+    content.style.backgroundColor = '#f5f5f5';
+    content.style.padding = '12px';
+    content.style.borderRadius = '4px';
+    content.style.overflow = 'auto';
+    content.style.fontSize = '14px';
+    
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.display = 'flex';
+    buttonContainer.style.gap = '10px';
+    buttonContainer.style.marginTop = '16px';
+    
+    const closeButton = document.createElement('button');
+    closeButton.textContent = 'Close';
+    closeButton.style.padding = '8px 16px';
+    closeButton.style.backgroundColor = '#7c3aed';
+    closeButton.style.color = 'white';
+    closeButton.style.border = 'none';
+    closeButton.style.borderRadius = '4px';
+    closeButton.style.cursor = 'pointer';
+    closeButton.onclick = () => modal.close();
+    
+    const downloadButton = document.createElement('button');
+    downloadButton.textContent = 'Download Example';
+    downloadButton.style.padding = '8px 16px';
+    downloadButton.style.backgroundColor = '#4f46e5';
+    downloadButton.style.color = 'white';
+    downloadButton.style.border = 'none';
+    downloadButton.style.borderRadius = '4px';
+    downloadButton.style.cursor = 'pointer';
+    downloadButton.onclick = () => {
+      // Create a blob with the YAML content
+      const blob = new Blob([exampleYamlStr], { type: 'text/yaml' });
+      
+      // Create a download link
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `invoice_example_${exampleData.invoice_number}.yaml`;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 0);
+    };
+    
+    buttonContainer.appendChild(downloadButton);
+    buttonContainer.appendChild(closeButton);
+    
+    modal.appendChild(heading);
+    modal.appendChild(content);
+    modal.appendChild(buttonContainer);
+    
+    document.body.appendChild(modal);
+    modal.showModal();
+    
+    modal.addEventListener('close', () => {
+      document.body.removeChild(modal);
+    });
+  };
+
+  // Add function to export current form data as YAML
+  const exportAsYaml = () => {
+    try {
+      // Convert form data to YAML
+      const yamlData = yaml.dump(formData);
+      
+      // Create a blob with the YAML data
+      const blob = new Blob([yamlData], { type: 'text/yaml' });
+      
+      // Create a download link
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `invoice_${formData.invoice_number || 'draft'}.yaml`;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 0);
+      
+      toast.success('Settings exported as YAML');
+    } catch (error) {
+      console.error('Error exporting settings:', error);
+      toast.error('Failed to export settings: ' + (error as Error).message);
+    }
+  };
+
+  // Custom file input component
+  const CustomFileInput = () => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      handleImageUpload(e);
+    };
+    
+    // Function to truncate long filenames
+    const displayFileName = () => {
+      if (!formData.icon_name) return "Choose File";
+      
+      // If filename is longer than 25 chars, truncate it
+      if (formData.icon_name.length > 25) {
+        return formData.icon_name.substring(0, 15) + '...' + 
+               formData.icon_name.substring(formData.icon_name.length - 8);
+      }
+      
+      return formData.icon_name;
+    };
+    
+    return (
+      <div className="relative w-full">
+        <label className="flex items-center justify-center gap-2 px-4 py-2 bg-invoice-purple text-white rounded-md hover:bg-invoice-deeper-purple cursor-pointer w-full transition-colors">
+          <Upload size={18} />
+          <span className="text-center whitespace-nowrap overflow-hidden text-ellipsis max-w-[80%]">
+            {displayFileName()}
+          </span>
+          <input 
+            type="file"
+            id="icon_upload"
+            accept="image/*"
+            onChange={handleChange}
+            className="sr-only"
+          />
+        </label>
+      </div>
+    );
+  };
+
   return (
     <div className="container py-8 max-w-4xl">
+      {/* Hidden file input for YAML import */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept=".yaml,.yml"
+        style={{ display: 'none' }}
+        onChange={handleFileImport}
+      />
+      
       <Card className="shadow-lg">
         <CardHeader className="bg-invoice-purple text-white">
           <div className="flex justify-between items-center">
@@ -195,7 +496,57 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                   : "Fill in the details to create a new invoice"}
               </CardDescription>
             </div>
-            <FileText size={32} />
+            <div className="flex gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    type="button"
+                    onClick={handleImportSettings}
+                    className="text-white hover:bg-invoice-deeper-purple"
+                  >
+                    <Download size={24} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Import Settings from YAML</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    type="button"
+                    onClick={exportAsYaml}
+                    className="text-white hover:bg-invoice-deeper-purple"
+                  >
+                    <Upload size={24} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Export Settings as YAML</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    type="button"
+                    onClick={showExampleYaml}
+                    className="text-white hover:bg-invoice-deeper-purple"
+                  >
+                    <HelpCircle size={24} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Show & Download YAML Format Example</p>
+                </TooltipContent>
+              </Tooltip>
+              <FileText size={32} />
+            </div>
           </div>
         </CardHeader>
         
@@ -207,28 +558,26 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="font_name">Font Name</Label>
-                    <Input
-                      id="font_name"
-                      name="font_name"
+                    <Select
                       value={formData.font_name}
-                      onChange={handleInputChange}
-                    />
+                      onValueChange={(value) => handleSelectChange('font_name', value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select font" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pdfFonts.map((font) => (
+                          <SelectItem key={font.value} value={font.value}>
+                            {font.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="icon_upload">Company Icon</Label>
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2">
-                        <Input
-                          id="icon_upload"
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageUpload}
-                          className="cursor-pointer"
-                        />
-                        <span className="text-sm text-gray-500">
-                          {formData.icon_name || "No file chosen"}
-                        </span>
-                      </div>
+                    <div className="flex flex-col gap-3">
+                      <CustomFileInput />
                       {imagePreview && (
                         <div className="relative w-32 h-32 border rounded-lg overflow-hidden">
                           <img
