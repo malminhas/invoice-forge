@@ -89,6 +89,10 @@ npm run dev
 
 4. The frontend will be available at http://localhost:8080
 
+Here is what the invoice creation form looks like:
+
+<img width="362" alt="image" src="https://github.com/user-attachments/assets/15ea7d29-4402-4320-9db8-78ce46dda3e0" />
+
 ### Backend Setup
 
 1. Set up a Python virtual environment (recommended)
