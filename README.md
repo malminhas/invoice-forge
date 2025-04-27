@@ -87,7 +87,7 @@ npm install
 npm run dev
 ```
 
-4. The frontend will be available at http://localhost:5173
+4. The frontend will be available at http://localhost:8080
 
 ### Backend Setup
 
