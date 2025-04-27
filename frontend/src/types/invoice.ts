@@ -1,9 +1,10 @@
-
 export interface Invoice {
   id?: string;
   client_name: string;
   client_address: string;
   services: string[];
+  service_date?: string; // Date when the service was provided
+  service_description?: string; // Description of the service provided
   payment_terms_days: number;
   invoice_number: number;
   invoice_date: string;
@@ -31,6 +32,8 @@ export const defaultInvoiceData: InvoiceFormData = {
   client_name: "",
   client_address: "",
   services: [""],
+  service_date: "",
+  service_description: "",
   payment_terms_days: 30,
   invoice_number: 1000,
   invoice_date: new Date().toLocaleDateString("en-GB"),

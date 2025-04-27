@@ -689,7 +689,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               
               <div>
                 <h3 className="text-lg font-semibold mb-3 text-invoice-dark-purple">Invoice Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="invoice_number">Invoice Number *</Label>
                     <Input
@@ -709,16 +709,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                       value={formData.invoice_date}
                       onChange={handleInputChange}
                       required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="payment_terms_days">Payment Terms (Days)</Label>
-                    <Input
-                      id="payment_terms_days"
-                      name="payment_terms_days"
-                      type="number"
-                      value={formData.payment_terms_days}
-                      onChange={handleNumericChange}
                     />
                   </div>
                   <div className="space-y-2">
@@ -743,6 +733,45 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                       required
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="payment_terms_days">Payment Terms (days) *</Label>
+                    <Input
+                      id="payment_terms_days"
+                      name="payment_terms_days"
+                      type="number"
+                      value={formData.payment_terms_days}
+                      onChange={handleNumericChange}
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <Separator />
+
+              <div>
+                <h3 className="text-lg font-semibold mb-3 text-invoice-dark-purple">Service Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="service_date">Service Date</Label>
+                    <Input
+                      id="service_date"
+                      name="service_date"
+                      value={formData.service_date || ""}
+                      onChange={handleInputChange}
+                      placeholder="DD.MM.YY"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="service_description">Service Description</Label>
+                    <Input
+                      id="service_description"
+                      name="service_description"
+                      value={formData.service_description || ""}
+                      onChange={handleInputChange}
+                      placeholder="General description of services provided"
+                    />
+                  </div>
                 </div>
               </div>
               
@@ -751,37 +780,37 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               <div>
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="text-lg font-semibold text-invoice-dark-purple">Services</h3>
-                  <Button 
-                    type="button" 
-                    onClick={addServiceField}
+                  <Button
+                    type="button"
                     variant="outline"
                     size="sm"
-                    className="flex items-center gap-1"
+                    onClick={addServiceField}
                   >
-                    <Plus size={16} /> Add Service
+                    Add Service
                   </Button>
                 </div>
                 
-                <div className="space-y-3">
-                  {formData.services.map((service, index) => (
-                    <div key={index} className="flex gap-2">
-                      <Input
-                        placeholder={`Service description (e.g., "AI Consultancy 29.03.25 (1 hour)")`}
-                        value={service}
-                        onChange={(e) => handleServiceChange(index, e.target.value)}
-                      />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        onClick={() => removeServiceField(index)}
-                        disabled={formData.services.length <= 1}
-                      >
-                        <Trash2 size={16} />
-                      </Button>
-                    </div>
-                  ))}
+                <div className="text-sm text-muted-foreground mb-2">
+                  Services must include a date (DD.MM.YY) and hours in parentheses. The date will be displayed in a separate column.
                 </div>
+                {formData.services.map((service, index) => (
+                  <div key={index} className="flex gap-2">
+                    <Input
+                      placeholder={`Service description (e.g., "AI Consultancy 21.04.25 (1 hour)")`}
+                      value={service}
+                      onChange={(e) => handleServiceChange(index, e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      onClick={() => removeServiceField(index)}
+                      disabled={formData.services.length <= 1}
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </div>
+                ))}
               </div>
               
               <Separator />

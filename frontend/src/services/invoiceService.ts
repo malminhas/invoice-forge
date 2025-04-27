@@ -40,7 +40,10 @@ export const addInvoice = (invoice: Invoice): Invoice => {
       id: generateId(),
       // Ensure icon data is properly saved
       icon_name: invoice.icon_name || "",
-      icon_data: invoice.icon_data || null
+      icon_data: invoice.icon_data || null,
+      // Include service details
+      service_date: invoice.service_date || "",
+      service_description: invoice.service_description || ""
     };
     saveInvoices([...invoices, newInvoice]);
     toast.success("Invoice added successfully");
@@ -168,6 +171,8 @@ export const importInvoiceSettings = (settings: Record<string, any>): Invoice =>
       client_name: settings.client_name || "",
       client_address: settings.client_address || "",
       services: settings.services || [""],
+      service_date: settings.service_date || "",
+      service_description: settings.service_description || "",
       payment_terms_days: Number(settings.payment_terms_days) || 30,
       invoice_number: Number(settings.invoice_number) || 1000,
       invoice_date: settings.invoice_date || new Date().toLocaleDateString("en-GB"),

@@ -40,7 +40,7 @@ import { toast } from "sonner";
 import Settings from "./Settings";
 
 // Define sort types
-type SortField = 'invoice_number' | 'client_name' | 'invoice_date' | 'amount' | 'status';
+type SortField = 'invoice_number' | 'client_name' | 'invoice_date' | 'service_date' | 'service_description' | 'amount' | 'status';
 type SortDirection = 'asc' | 'desc';
 
 const InvoiceList: React.FC = () => {
@@ -188,6 +188,22 @@ const InvoiceList: React.FC = () => {
             const dateA = parseInvoiceDate(a.invoice_date);
             const dateB = parseInvoiceDate(b.invoice_date);
             comparison = dateA.getTime() - dateB.getTime();
+            break;
+          case 'service_date':
+            // Parse service dates for comparison
+            if (a.service_date && b.service_date) {
+              const serviceDateA = parseInvoiceDate(a.service_date);
+              const serviceDateB = parseInvoiceDate(b.service_date);
+              comparison = serviceDateA.getTime() - serviceDateB.getTime();
+            } else if (a.service_date) {
+              comparison = 1;
+            } else if (b.service_date) {
+              comparison = -1;
+            }
+            break;
+          case 'service_description':
+            // Compare service descriptions as strings
+            comparison = (a.service_description || "").localeCompare(b.service_description || "");
             break;
           case 'amount':
             // Direct calculation for sorting - simplify the logic for amounts
@@ -351,6 +367,18 @@ const InvoiceList: React.FC = () => {
                       Date {renderSortIndicator('invoice_date')}
                     </TableHead>
                     <TableHead 
+                      className={`${sortableHeaderStyle} ${getSortColumnClass('service_date')}`}
+                      onClick={() => handleSort('service_date')}
+                    >
+                      Service Date {renderSortIndicator('service_date')}
+                    </TableHead>
+                    <TableHead 
+                      className={`${sortableHeaderStyle} ${getSortColumnClass('service_description')}`}
+                      onClick={() => handleSort('service_description')}
+                    >
+                      Service Description {renderSortIndicator('service_description')}
+                    </TableHead>
+                    <TableHead 
                       className={`${sortableHeaderStyle} ${getSortColumnClass('amount')}`}
                       onClick={() => handleSort('amount')}
                     >
@@ -371,6 +399,8 @@ const InvoiceList: React.FC = () => {
                       <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
                       <TableCell>{invoice.client_name}</TableCell>
                       <TableCell>{invoice.invoice_date}</TableCell>
+                      <TableCell>{invoice.service_date || '-'}</TableCell>
+                      <TableCell>{invoice.service_description || '-'}</TableCell>
                       <TableCell>{formatCurrency(calculateTotal(invoice))}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium 
