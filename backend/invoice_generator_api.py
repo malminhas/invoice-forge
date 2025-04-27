@@ -20,8 +20,28 @@ It leverages the core invoice generation logic from the invoice_generator.py scr
 - The API allows common HTTP methods and headers
 - Credentials are supported for authenticated requests
 
+## Installation
+- pip install fastapi uvicorn pydantic python-docx pyyaml docopt
+
 ## Usage
-- Start the server: uvicorn invoice_generator_api:app --reload
+- Start the server using uvicorn:
+  ```
+  # Basic usage (default: http://localhost:8000)
+  uvicorn invoice_generator_api:app --reload
+  
+  # With custom host and port
+  uvicorn invoice_generator_api:app --host 0.0.0.0 --port 8080 --reload
+  
+  # Production mode (disable reload)
+  uvicorn invoice_generator_api:app --host 0.0.0.0 --port 8000
+  
+  # With verbose logging
+  VERBOSE=True uvicorn invoice_generator_api:app --reload
+  
+  # Using Python module syntax
+  python -m uvicorn invoice_generator_api:app --reload
+  ```
+
 - Access Swagger UI: http://localhost:8000/docs
 - Access ReDoc UI: http://localhost:8000/redoc
 - Send POST requests to /generate-invoice with appropriate JSON data
@@ -77,7 +97,7 @@ curl -X POST "http://localhost:8000/generate-invoice?format=pdf" \\
 import os
 import tempfile
 import logging
-import yaml # pip install pyyaml
+import yaml # type: ignore
 import sys
 from typing import Dict, List, Union, Optional, Set # type: ignore
 from fastapi import FastAPI, HTTPException, Query, status # type: ignore
@@ -196,7 +216,7 @@ class InvoiceDetails(BaseModel):
     )
     services: List[str] = Field(
         ..., 
-        description="List of services with hours in parentheses, e.g. 'Service name (2 hours)'",
+        description="List of services with date (DD.MM.YY) and hours in parentheses, e.g. 'Service name 21.04.25 (2 hours)'",
         example=["AI Consultancy 29.03.25 (1 hour)", "Notes write up 29.03.25 (1 hour)"]
     )
     payment_terms_days: int = Field(
@@ -288,18 +308,28 @@ class InvoiceDetails(BaseModel):
         description="Company icon/logo filename (must be in the same directory)",
         example="DioramaConsultingIcon.png"
     )
+    icon_data: Optional[str] = Field(
+        None,
+        description="Base64 encoded image data for the icon",
+        example="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+    )
     
     @validator('services')
     def validate_services(cls, v):
-        """Validate that services contain hours in parentheses"""
+        """Validate that services contain date and hours in parentheses"""
         import re
         for service in v:
+            # Check for hours in parentheses
             if not re.search(r'\(\d+\.?\d*\s*hours?\)', service):
                 raise ValueError(f"Service '{service}' must include hours in parentheses, e.g. '(2 hours)'")
+            
+            # Check for date in format DD.MM.YY or DD.MM.YYYY
+            if not re.search(r'\d{1,2}\.\d{1,2}\.\d{2,4}', service):
+                raise ValueError(f"Service '{service}' must include a date in format DD.MM.YY, e.g. '21.04.25'")
         return v
         
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "client_name": "Mike Smith",
                 "client_address": "17 Poland St.\nLondon\nW2 4ZZ\nU.K.",
@@ -320,7 +350,8 @@ class InvoiceDetails(BaseModel):
                 "contact_number": "07700 900123",
                 "column_widths": [2.5, 3.5],
                 "font_name": "Calibri",
-                "icon_name": "DioramaConsultingIcon.png"
+                "icon_name": "DioramaConsultingIcon.png",
+                "icon_data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+P+/HgAFdwI2hN4pSgAAAABJRU5ErkJggg=="
             }
         }
 
@@ -354,14 +385,70 @@ def generate_invoice_document(details: Dict, output_path: Path, generate_pdf: bo
     cell_left = table.cell(0, 0)
     cell_left.text = '' # Clear placeholder text
     
-    # Add image - ensure the icon is in the same directory or provide full path
+    # Add image - handle both file path and base64 data
     try:
-        cell_left.paragraphs[0].add_run().add_picture(details['icon_name'], width=Inches(2.0))
-        logger.debug(f"Added company icon: {details['icon_name']}")
+        # First check if we have icon_data (base64)
+        if 'icon_data' in details and details['icon_data']:
+            logger.info(f"Using provided base64 icon data for {details['icon_name']}")
+            import base64
+            import tempfile
+            import re
+            
+            # Extract the actual base64 content if it has a data URL prefix
+            base64_data = details['icon_data']
+            if base64_data.startswith('data:'):
+                # Extract the base64 part after the comma
+                match = re.match(r'data:image/[^;]+;base64,(.+)', base64_data)
+                if match:
+                    base64_data = match.group(1)
+                else:
+                    logger.warning(f"Couldn't parse base64 data URL format")
+            
+            # Create a temporary file with the icon data
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.' + details['icon_name'].split('.')[-1]) as temp_icon:
+                temp_icon.write(base64.b64decode(base64_data))
+                temp_icon_path = temp_icon.name
+                
+            logger.info(f"Created temporary icon file at: {temp_icon_path}")
+            cell_left.paragraphs[0].add_run().add_picture(temp_icon_path, width=Inches(2.0))
+            logger.info(f"Successfully added company icon from base64 data")
+            
+            # Clean up the temporary file
+            try:
+                os.unlink(temp_icon_path)
+                logger.debug(f"Removed temporary icon file: {temp_icon_path}")
+            except Exception as e:
+                logger.warning(f"Could not remove temporary icon file: {e}")
+        
+        # If no icon_data, try to find the file by name
+        else:
+            # First try with the exact name provided
+            icon_path = details['icon_name']
+            logger.info(f"Attempting to load icon from: {icon_path}")
+            
+            if not os.path.exists(icon_path):
+                # If not found, check in the current directory
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                icon_path = os.path.join(current_dir, details['icon_name'])
+                logger.info(f"Icon not found at direct path, trying current directory: {icon_path}")
+                
+                if not os.path.exists(icon_path):
+                    # Also check in the invoices directory
+                    icon_path = os.path.join(invoices_dir, details['icon_name'])
+                    logger.info(f"Icon not found in current directory, trying invoices directory: {icon_path}")
+                    
+                    if not os.path.exists(icon_path):
+                        raise FileNotFoundError(f"Icon file not found in any location: {details['icon_name']}")
+            
+            cell_left.paragraphs[0].add_run().add_picture(icon_path, width=Inches(2.0))
+            logger.info(f"Successfully added company icon from: {icon_path}")
     except Exception as e:
         logger.warning(f"Could not add company icon: {str(e)}")
-        cell_left.text = details['company_name'] + " (Icon not found)"
-        logger.debug(f"Using text placeholder for icon: {cell_left.text}")
+        logger.warning(f"Attempted to find icon at: {details['icon_name']}")
+        icon_missing_text = f"{details['company_name']} (Icon not found)"
+        cell_left.text = icon_missing_text
+        logger.debug(f"Using text placeholder for icon: {icon_missing_text}")
+        logger.warning("Make sure the icon file is available in the backend directory or provide a full path")
 
     # Right cell - Invoice Number and Client Info
     cell_right = table.cell(0, 1)
@@ -418,12 +505,15 @@ def generate_invoice_document(details: Dict, output_path: Path, generate_pdf: bo
     # Table for services
     doc.add_paragraph("Invoice Details", style='Heading 2')
 
-    table = doc.add_table(rows=1, cols=2)
+    table = doc.add_table(rows=1, cols=3)
     table.style = 'Table Grid'
     hdr_cells = table.rows[0].cells
-    hdr_cells[0].text = 'Description of Service'
-    hdr_cells[1].text = 'Total'
-    hdr_cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    hdr_cells[0].text = 'Date'
+    hdr_cells[1].text = 'Description of Service'
+    hdr_cells[2].text = 'Total'
+    hdr_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+    hdr_cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
+    hdr_cells[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
     logger.debug("Created services table with headers")
 
     # Add background color to header cells
@@ -443,38 +533,56 @@ def generate_invoice_document(details: Dict, output_path: Path, generate_pdf: bo
     
     for service in details['services']:
         row_cells = table.add_row().cells
-        desc_cell = row_cells[0]
-        desc_cell.text = '' # Clear cell
-        run = desc_cell.paragraphs[0].add_run(service)
         
-        # Extract hours from service description (e.g., "AI Consultancy (1 hour)" -> 1)
+        # Extract date from service description using regex
+        date_match = re.search(r'(\d{1,2}\.\d{1,2}\.\d{2,4})', service)
+        date_str = date_match.group(1) if date_match else ""
+        
+        # Extract hours from service description
         hours_match = re.search(r'\((\d+\.?\d*)\s*hours?\)', service)
         hours = float(hours_match.group(1)) if hours_match else 0
         
+        # Create a clean description without the date
+        description = service
+        if date_match:
+            description = re.sub(r'\s*\d{1,2}\.\d{1,2}\.\d{2,4}\s*', ' ', description).strip()
+        
+        # Fill cells
+        date_cell = row_cells[0]
+        date_cell.text = date_str
+        date_cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        
+        desc_cell = row_cells[1]
+        desc_cell.text = description
+        
         # Calculate cost
         cost = hours * details['hourly_rate']
-        row_cells[1].text = f'£{cost:.2f}'
-        row_cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        row_cells[2].text = f'£{cost:.2f}'
+        row_cells[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
         
         subtotal += cost
-        logger.info(f"Service: {service} - Hours: {hours} - Cost: £{cost:.2f}")
+        logger.info(f"Service: {service} - Date: {date_str} - Hours: {hours} - Cost: £{cost:.2f}")
 
     logger.info(f"Subtotal calculated: £{subtotal:.2f}")
 
     # Totals
     row_subtotal = table.add_row().cells
-    row_subtotal[0].text = 'Subtotal'
-    row_subtotal[1].text = f'£{subtotal:.2f}'
+    row_subtotal[0].text = ''
+    row_subtotal[1].text = 'Subtotal'
     row_subtotal[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    row_subtotal[2].text = f'£{subtotal:.2f}'
+    row_subtotal[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
     logger.debug("Added subtotal row")
 
     vat_amount = subtotal * (details['vat_rate'] / 100)
     logger.info(f"VAT amount calculated ({details['vat_rate']}%): £{vat_amount:.2f}")
 
     row_vat = table.add_row().cells
-    row_vat[0].text = f'VAT ({details["vat_rate"]}%)'
-    row_vat[1].text = f'£{vat_amount:.2f}'
+    row_vat[0].text = ''
+    row_vat[1].text = f'VAT ({details["vat_rate"]}%)'
     row_vat[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    row_vat[2].text = f'£{vat_amount:.2f}'
+    row_vat[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
     logger.debug(f"Added VAT row with rate {details['vat_rate']}%")
 
     total = subtotal + vat_amount
@@ -482,14 +590,17 @@ def generate_invoice_document(details: Dict, output_path: Path, generate_pdf: bo
 
     row_total = table.add_row().cells
     # Make both cells of Total Amount Due bold
-    total_due_cell = row_total[0]
-    total_due_cell.text = '' # Clear existing content
+    row_total[0].text = ''
+    
+    total_due_cell = row_total[1]
+    total_due_cell.text = ''  # Clear existing content
     total_due_run = total_due_cell.paragraphs[0].add_run('Total Amount Due')
     total_due_run.bold = True
+    total_due_cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
 
     # Make the amount bold too
-    total_amount_cell = row_total[1]
-    total_amount_cell.text = '' # Clear existing content
+    total_amount_cell = row_total[2]
+    total_amount_cell.text = ''  # Clear existing content
     total_amount_run = total_amount_cell.paragraphs[0].add_run(f'£{total:.2f}')
     total_amount_run.bold = True
     total_amount_cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
@@ -542,6 +653,11 @@ Generate an invoice in DOCX or PDF format based on the provided details.
 The endpoint accepts a JSON object containing all the necessary invoice information 
 and returns a downloadable document file.
 
+The invoice table includes three columns:
+- Date: Extracted from the service description (DD.MM.YY format)
+- Description of Service: The service provided
+- Total: The cost calculated based on hours × hourly rate
+
 Invoice calculation follows these rules:
 - Each service cost = hours × hourly rate
 - Subtotal = sum of all service costs 
@@ -549,7 +665,8 @@ Invoice calculation follows these rules:
 - Total amount due = subtotal + VAT amount
 
 Hours are automatically extracted from service descriptions, which must include 
-the time in parentheses, e.g., "Consulting Service (2 hours)".
+the time in parentheses, e.g., "Consulting Service 21.04.25 (2 hours)".
+The date should be in DD.MM.YY format within the service description.
     """,
     response_description="The generated invoice file for download",
     status_code=status.HTTP_200_OK,
