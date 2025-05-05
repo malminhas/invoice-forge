@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Separator } from "@/components/ui/separator";
 import { Invoice, InvoiceFormData, defaultInvoiceData } from "@/types/invoice";
 import { FileText, Plus, Trash2, Save, Upload, Image, Download, HelpCircle, FileOutput, Check, ChevronsUpDown } from "lucide-react";
-import { addInvoice, updateInvoice, callGenerateInvoiceApi, importInvoiceSettings } from "@/services/invoiceService";
+import { addInvoice, updateInvoice, callGenerateInvoiceApi, importInvoiceSettings, callGenerateInvoiceDocxApi } from "@/services/invoiceService";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import yaml from 'js-yaml';
@@ -50,6 +50,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isGeneratingDocx, setIsGeneratingDocx] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   
@@ -70,6 +71,16 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    
+    // Add validation for service date format
+    if (name === 'service_date' && value) {
+      const dateRegex = /^\d{1,2}\.\d{1,2}\.\d{2,4}$/;
+      if (!dateRegex.test(value)) {
+        toast.error("Service date must be in DD.MM.YY format");
+        return;
+      }
+    }
+    
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -209,6 +220,47 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     }
   };
 
+  const handleGenerateDocx = async () => {
+    setIsGeneratingDocx(true);
+    try {
+      let invoiceToGenerate: Invoice;
+      if (!isEditing) {
+        const requiredFields = [
+          "client_name", "company_name", "invoice_number",
+          "invoice_date", "hourly_rate", "vat_rate"
+        ];
+        const missingFields = requiredFields.filter(field => 
+          !formData[field as keyof InvoiceFormData]
+        );
+        if (missingFields.length > 0) {
+          toast.error(`Please fill in all required fields: ${missingFields.join(", ")}`);
+          setIsGeneratingDocx(false);
+          return;
+        }
+        invoiceToGenerate = await addInvoice(formData as Invoice);
+      } else {
+        invoiceToGenerate = await updateInvoice(formData as Invoice);
+      }
+      const docxUrl = await callGenerateInvoiceDocxApi(invoiceToGenerate);
+      // Download the DOCX file
+      const a = document.createElement('a');
+      a.href = docxUrl;
+      a.download = `invoice_${invoiceToGenerate.invoice_number}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(docxUrl);
+      }, 0);
+      toast.success("DOCX generated and downloaded successfully!");
+    } catch (error) {
+      console.error("Error generating DOCX:", error);
+      toast.error("Failed to generate DOCX");
+    } finally {
+      setIsGeneratingDocx(false);
+    }
+  };
+
   const handleImportSettings = () => {
     // Import from file - only YAML files supported now
     fileInputRef.current?.click();
@@ -297,6 +349,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       client_name: clientNames[Math.floor(Math.random() * clientNames.length)], 
       client_address: `${Math.floor(Math.random() * 200)} Oak Street\nLondon\nSW${Math.floor(Math.random() * 10)} ${Math.floor(Math.random() * 10)}AB\nU.K.`, 
       services: randomServices, 
+      service_date: formattedDate,
+      service_description: `Professional ${serviceTypes[Math.floor(Math.random() * serviceTypes.length)]} Services`,
       payment_terms_days: [7, 14, 30, 60][Math.floor(Math.random() * 4)], 
       invoice_number: randomInvoiceNumber, 
       invoice_date: formattedDate, 
@@ -753,7 +807,19 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 <h3 className="text-lg font-semibold mb-3 text-invoice-dark-purple">Service Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div className="space-y-2">
-                    <Label htmlFor="service_date">Service Date</Label>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="service_date">Service Date</Label>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Enter date in DD.MM.YY format (e.g., 21.04.25)</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                     <Input
                       id="service_date"
                       name="service_date"
@@ -848,6 +914,17 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                   </div>
                 </div>
               </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="paid"
+                  name="paid"
+                  checked={!!formData.paid}
+                  onChange={e => setFormData(prev => ({ ...prev, paid: e.target.checked }))}
+                  className="w-4 h-4"
+                />
+                <Label htmlFor="paid" className="text-base">Mark as Paid</Label>
+              </div>
             </div>
           </CardContent>
           
@@ -869,7 +946,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               <div className="flex gap-2">
                 <Button 
                   type="submit" 
-                  disabled={isSubmitting || isGeneratingPdf}
+                  disabled={isSubmitting || isGeneratingPdf || isGeneratingDocx}
                   className="bg-invoice-dark-purple hover:bg-invoice-purple"
                 >
                   <Save className="mr-2 h-4 w-4" />
@@ -878,11 +955,20 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 <Button 
                   type="button"
                   onClick={handleGeneratePdf}
-                  disabled={isSubmitting || isGeneratingPdf}
+                  disabled={isSubmitting || isGeneratingPdf || isGeneratingDocx}
                   className="bg-invoice-purple hover:bg-invoice-dark-purple"
                 >
                   <FileText className="mr-2 h-4 w-4" />
                   {isGeneratingPdf ? "Generating..." : "Generate PDF"}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleGenerateDocx}
+                  disabled={isSubmitting || isGeneratingPdf || isGeneratingDocx}
+                  className="bg-invoice-purple/70 hover:bg-invoice-dark-purple"
+                >
+                  <FileOutput className="mr-2 h-4 w-4" />
+                  {isGeneratingDocx ? "Generating..." : "Generate DOCX"}
                 </Button>
               </div>
             </div>

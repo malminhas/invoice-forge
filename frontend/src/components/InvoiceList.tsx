@@ -32,7 +32,9 @@ import {
   Trash2, 
   Settings as SettingsIcon,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Save,
+  Upload
 } from "lucide-react";
 import { Invoice } from "@/types/invoice";
 import { getInvoices, deleteInvoice } from "@/services/invoiceService";
@@ -52,6 +54,8 @@ const InvoiceList: React.FC = () => {
   // Add sort state
   const [sortField, setSortField] = useState<SortField>('invoice_number');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const loadInvoices = () => {
@@ -294,6 +298,53 @@ const InvoiceList: React.FC = () => {
   // Style for sortable column headers
   const sortableHeaderStyle = "cursor-pointer hover:bg-gray-100 active:bg-gray-200 transition-colors duration-200 select-none relative";
 
+  // Backup: Download all invoices as a JSON file
+  const handleBackup = () => {
+    const dataStr = JSON.stringify(invoices, null, 2);
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+    const filename = `invoice-repository-backup-${dateStr}.json`;
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("Backup downloaded!");
+  };
+
+  // Restore: Upload a JSON file and replace invoices
+  const handleRestoreClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleRestore = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target?.result as string);
+        if (!Array.isArray(data)) throw new Error("Invalid backup file");
+        // Optionally validate structure here
+        localStorage.setItem("invoices", JSON.stringify(data));
+        setInvoices(data);
+        toast.success("Repository restored!");
+      } catch (err) {
+        toast.error("Failed to restore: Invalid file format.");
+      }
+    };
+    reader.readAsText(file);
+    // Reset input value so the same file can be uploaded again if needed
+    event.target.value = "";
+  };
+
   return (
     <div className="container py-8 max-w-6xl">
       <Card className="shadow-lg">
@@ -307,6 +358,19 @@ const InvoiceList: React.FC = () => {
             </div>
             <div className="flex items-center gap-2">
               <Settings />
+              <Button onClick={handleBackup} className="bg-white text-invoice-purple hover:bg-gray-100" title="Backup Repository">
+                <Save className="mr-2 h-4 w-4" /> Backup
+              </Button>
+              <Button onClick={handleRestoreClick} className="bg-white text-invoice-purple hover:bg-gray-100" title="Restore Repository">
+                <Upload className="mr-2 h-4 w-4" /> Restore
+              </Button>
+              <input
+                type="file"
+                accept="application/json"
+                ref={fileInputRef}
+                onChange={handleRestore}
+                style={{ display: "none" }}
+              />
               <Button 
                 onClick={handleCreateInvoice} 
                 className="bg-white text-invoice-purple hover:bg-gray-100 w-full sm:w-auto"
@@ -361,12 +425,6 @@ const InvoiceList: React.FC = () => {
                       Client {renderSortIndicator('client_name')}
                     </TableHead>
                     <TableHead 
-                      className={`${sortableHeaderStyle} ${getSortColumnClass('invoice_date')}`}
-                      onClick={() => handleSort('invoice_date')}
-                    >
-                      Date {renderSortIndicator('invoice_date')}
-                    </TableHead>
-                    <TableHead 
                       className={`${sortableHeaderStyle} ${getSortColumnClass('service_date')}`}
                       onClick={() => handleSort('service_date')}
                     >
@@ -379,11 +437,18 @@ const InvoiceList: React.FC = () => {
                       Service Description {renderSortIndicator('service_description')}
                     </TableHead>
                     <TableHead 
+                      className={`${sortableHeaderStyle} ${getSortColumnClass('invoice_date')}`}
+                      onClick={() => handleSort('invoice_date')}
+                    >
+                      Invoice Date {renderSortIndicator('invoice_date')}
+                    </TableHead>
+                    <TableHead 
                       className={`${sortableHeaderStyle} ${getSortColumnClass('amount')}`}
                       onClick={() => handleSort('amount')}
                     >
                       Amount {renderSortIndicator('amount')}
                     </TableHead>
+                    <TableHead className="text-center">Paid</TableHead>
                     <TableHead 
                       className={`${sortableHeaderStyle} ${getSortColumnClass('status')}`}
                       onClick={() => handleSort('status')}
@@ -396,12 +461,19 @@ const InvoiceList: React.FC = () => {
                 <TableBody>
                   {filteredInvoices.map((invoice) => (
                     <TableRow key={invoice.id}>
-                      <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
+                      <TableCell className="bg-invoice-purple/10 text-invoice-purple font-semibold">{invoice.invoice_number}</TableCell>
                       <TableCell>{invoice.client_name}</TableCell>
-                      <TableCell>{invoice.invoice_date}</TableCell>
-                      <TableCell>{invoice.service_date || '-'}</TableCell>
+                      <TableCell className="bg-invoice-purple/10 text-invoice-purple font-semibold">{invoice.service_date || "-"}</TableCell>
                       <TableCell>{invoice.service_description || '-'}</TableCell>
-                      <TableCell>{formatCurrency(calculateTotal(invoice))}</TableCell>
+                      <TableCell>{invoice.invoice_date}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(calculateTotal(invoice))}</TableCell>
+                      <TableCell className="text-center">
+                        {invoice.paid ? (
+                          <span className="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded">PAID</span>
+                        ) : (
+                          <span className="bg-gray-200 text-gray-700 text-xs font-semibold px-2.5 py-0.5 rounded">Unpaid</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium 
                           ${invoice.pdf_url 
@@ -447,7 +519,6 @@ const InvoiceList: React.FC = () => {
             </div>
           )}
         </CardContent>
-        
         {filteredInvoices.length > 0 && (
           <CardFooter className="border-t p-6">
             <div className="flex items-center text-sm text-gray-500">

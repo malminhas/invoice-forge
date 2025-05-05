@@ -107,6 +107,10 @@ from pydantic import BaseModel, Field, validator # type: ignore
 from pathlib import Path
 from enum import Enum
 from fastapi.openapi.utils import get_openapi # type: ignore
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import parse_xml
+from docx.oxml.ns import nsdecls
+from docx.shared import Inches
 
 # Configuration variables
 VERBOSE = os.environ.get('VERBOSE', 'False').lower() in ('true', '1', 't')
@@ -219,6 +223,16 @@ class InvoiceDetails(BaseModel):
         description="List of services with date (DD.MM.YY) and hours in parentheses, e.g. 'Service name 21.04.25 (2 hours)'",
         example=["AI Consultancy 29.03.25 (1 hour)", "Notes write up 29.03.25 (1 hour)"]
     )
+    service_date: Optional[str] = Field(
+        None,
+        description="Date when the service was provided in DD.MM.YY format",
+        example="21.04.25"
+    )
+    service_description: Optional[str] = Field(
+        None,
+        description="General description of the service provided",
+        example="AI Consultancy and Documentation"
+    )
     payment_terms_days: int = Field(
         ..., 
         description="Payment terms in days",
@@ -313,6 +327,11 @@ class InvoiceDetails(BaseModel):
         description="Base64 encoded image data for the icon",
         example="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
     )
+    paid: Optional[bool] = Field(
+        False,
+        description="Whether the invoice has been paid",
+        example=False
+    )
     
     @validator('services')
     def validate_services(cls, v):
@@ -334,6 +353,8 @@ class InvoiceDetails(BaseModel):
                 "client_name": "Mike Smith",
                 "client_address": "17 Poland St.\nLondon\nW2 4ZZ\nU.K.",
                 "services": ["AI Consultancy 29.03.25 (1 hour)", "Notes write up 29.03.25 (1 hour)"],
+                "service_date": "29.03.25",
+                "service_description": "AI Consultancy and Documentation Services",
                 "payment_terms_days": 30,
                 "invoice_number": 1008,
                 "invoice_date": "21.04.25",
@@ -630,6 +651,31 @@ def generate_invoice_document(details: Dict, output_path: Path, generate_pdf: bo
     run.font.size = Pt(8)
     logger.debug("Added footer with payment and company details")
 
+    # Add PAID stamp as a watermark in the footer, bottom left, if paid
+    if details.get('paid'):
+        try:
+            import os
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            stamp_path = os.path.join(current_dir, 'paid_stamp.png')
+            if os.path.exists(stamp_path):
+                section = doc.sections[0]
+                footer = section.footer
+                # Remove existing paragraphs in footer
+                for p in footer.paragraphs:
+                    p.clear()
+                # Add a new paragraph for the watermark
+                paragraph = footer.add_paragraph()
+                run = paragraph.add_run()
+                run.add_picture(stamp_path, width=Inches(1.5))
+                # Optionally, set paragraph spacing to 0
+                paragraph.paragraph_format.space_after = 0
+                paragraph.paragraph_format.space_before = 0
+                # The image will be in the footer, bottom left, and appear behind content
+            else:
+                logger.warning(f"PAID stamp image not found at {stamp_path}")
+        except Exception as e:
+            logger.error(f"Failed to add PAID watermark to footer: {e}")
+
     # Save the document
     logger.info(f"Saving invoice document to: {output_path}")
     doc.save(output_path)
@@ -716,7 +762,13 @@ async def generate_invoice(
         
         # Create a temporary YAML file to store the invoice details
         with tempfile.NamedTemporaryFile(suffix='.yaml', delete=False, mode='w') as temp_yaml:
-            yaml.dump(invoice_details.dict(), temp_yaml)
+            # Convert the invoice details to a dictionary and include service_date and service_description
+            invoice_dict = invoice_details.dict()
+            if invoice_details.service_date:
+                invoice_dict['service_date'] = invoice_details.service_date
+            if invoice_details.service_description:
+                invoice_dict['service_description'] = invoice_details.service_description
+            yaml.dump(invoice_dict, temp_yaml)
             temp_yaml_path = Path(temp_yaml.name)
             logger.debug(f"Created temporary YAML file at: {temp_yaml_path}")
         
@@ -727,7 +779,7 @@ async def generate_invoice(
             
             # Generate the invoice
             result_path = generate_invoice_document(
-                invoice_details.dict(), 
+                invoice_dict, 
                 invoice_path, 
                 generate_pdf
             )

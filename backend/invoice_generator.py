@@ -2,14 +2,15 @@
 Invoice Generator Script
 
 Usage:
-    invoice_generator.py [-v] [-V] [--pdf] <yaml_file>
+    invoice_generator.py [-v] [-V] [--pdf] [--pdf-backend=<backend>] <yaml_file>
     invoice_generator.py -h
 
 Options:
     -h --help       Show this help message and exit
     -v --verbose    Enable verbose logging output
     -V --version    Show version information
-    --pdf          Generate PDF output in addition to DOCX
+    --pdf           Generate PDF output in addition to DOCX
+    --pdf-backend=<backend>  PDF backend: 'libreoffice' (default) or 'docx2pdf'
     <yaml_file>     Name of YAML configuration file (will be loaded from invoices directory)
 
 This script generates an invoice document using data from a YAML file.
@@ -111,37 +112,61 @@ def get_pdf_path(docx_path):
     """Generate PDF path from DOCX path."""
     return docx_path.with_suffix('.pdf')
 
-def convert_to_pdf(docx_path, logger):
-    """Convert DOCX to PDF using unoconv."""
-    pdf_path = get_pdf_path(docx_path)
-    if logger.isEnabledFor(logging.INFO):
-        logger.info(f"Converting DOCX to PDF: {pdf_path}")
-    try:
-        # Check if unoconv is installed
+def convert_to_pdf(docx_path: Path, logger, backend: str = 'libreoffice') -> Path:
+    """
+    Convert a DOCX file to PDF format using the selected backend.
+    Args:
+        docx_path (Path): Path to the DOCX file
+        logger: Logger instance for logging messages
+        backend (str): 'libreoffice' or 'docx2pdf'
+    Returns:
+        Path: Path to the generated PDF file
+    Raises:
+        RuntimeError: If PDF conversion fails
+    """
+    if backend == 'libreoffice':
         try:
+            # Check if unoconv is installed
             subprocess.run(['which', 'unoconv'], check=True, capture_output=True)
+            pdf_path = get_pdf_path(docx_path)
+            logger.info(f"Converting DOCX to PDF using LibreOffice/unoconv: {pdf_path}")
+            result = subprocess.run(['unoconv', '-f', 'pdf', str(docx_path)], check=True, capture_output=True, text=True)
+            if not pdf_path.exists():
+                raise RuntimeError(f"PDF conversion failed. unoconv output: {result.stderr}")
+            logger.info("PDF conversion completed successfully (LibreOffice)")
+            return pdf_path
         except subprocess.CalledProcessError:
-            raise RuntimeError("unoconv is not installed. Please install it using 'brew install unoconv'")
-
-        # Convert using unoconv
-        result = subprocess.run(['unoconv', '-f', 'pdf', str(docx_path)], 
-                              check=True, 
-                              capture_output=True,
-                              text=True)
-        
-        if not pdf_path.exists():
-            raise RuntimeError(f"PDF conversion failed. unoconv output: {result.stderr}")
-            
-        if logger.isEnabledFor(logging.INFO):
-            logger.info("PDF conversion completed successfully")
-        return pdf_path
-    except subprocess.CalledProcessError as e:
-        error_msg = f"PDF conversion failed: {e.stderr if e.stderr else str(e)}"
+            error_msg = "unoconv is not installed or failed. Please install it using 'brew install unoconv' or check your LibreOffice installation."
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+        except Exception as e:
+            logger.error(f"Failed to convert to PDF (LibreOffice): {str(e)}")
+            raise
+    elif backend == 'docx2pdf':
+        try:
+            from docx2pdf import convert
+            pdf_path = get_pdf_path(docx_path)
+            logger.info(f"Converting {docx_path} to PDF using docx2pdf...")
+            convert(str(docx_path), str(pdf_path))
+            if pdf_path.exists():
+                logger.info(f"PDF conversion successful: {pdf_path}")
+                return pdf_path
+            else:
+                error_msg = "PDF conversion failed: Output file was not created"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
+        except ImportError:
+            error_msg = "docx2pdf is not installed. Please install it using 'pip install docx2pdf'"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+        except Exception as e:
+            error_msg = f"PDF conversion failed (docx2pdf): {str(e)}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+    else:
+        error_msg = f"Unknown PDF backend: {backend}. Supported: 'libreoffice', 'docx2pdf'"
         logger.error(error_msg)
         raise RuntimeError(error_msg)
-    except Exception as e:
-        logger.error(f"Failed to convert to PDF: {str(e)}")
-        raise
 
 def load_details(file_path):
     """Load and validate configuration from YAML file."""
@@ -389,7 +414,8 @@ def main():
 
         # Convert to PDF if requested
         if arguments['--pdf']:
-            pdf_path = convert_to_pdf(output_path, logger)
+            pdf_backend = arguments.get('--pdf-backend') or 'libreoffice'
+            pdf_path = convert_to_pdf(output_path, logger, backend=pdf_backend)
             # Open the PDF instead of DOCX if it was generated
             output_path = pdf_path
 

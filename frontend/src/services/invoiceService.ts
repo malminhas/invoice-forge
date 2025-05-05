@@ -200,3 +200,46 @@ export const importInvoiceSettings = (settings: Record<string, any>): Invoice =>
     throw error;
   }
 };
+
+export const generateInvoiceDocx = async (invoice: Invoice): Promise<string> => {
+  try {
+    const invoiceData = {
+      ...invoice,
+      hourly_rate: Number(invoice.hourly_rate),
+      vat_rate: Number(invoice.vat_rate),
+      invoice_number: Number(invoice.invoice_number),
+      payment_terms_days: Number(invoice.payment_terms_days || 0)
+    };
+    const endpoint = (localStorage.getItem('pdfEndpoint') || 'http://localhost:8000/generate-invoice?format=pdf').replace('format=pdf', 'format=docx');
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(invoiceData)
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to generate DOCX: ${response.status} ${errorText}`);
+    }
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    toast.success('Invoice DOCX generated successfully');
+    return url;
+  } catch (error) {
+    console.error('Error generating invoice DOCX:', error);
+    toast.error('Failed to generate invoice DOCX');
+    throw error;
+  }
+};
+
+export const callGenerateInvoiceDocxApi = async (invoice: Invoice): Promise<string> => {
+  try {
+    const docxUrl = await generateInvoiceDocx(invoice);
+    return docxUrl;
+  } catch (error) {
+    console.error('API call failed:', error);
+    toast.error('Failed to call invoice DOCX generation API');
+    throw error;
+  }
+};

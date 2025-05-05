@@ -24,9 +24,12 @@ export interface Invoice {
   icon_name: string;
   icon_data?: string; // Add this field to store the base64 image data
   pdf_url?: string;
+  paid?: boolean;
 }
 
-export interface InvoiceFormData extends Invoice {}
+export interface InvoiceFormData extends Invoice {
+  paid?: boolean;
+}
 
 export const defaultInvoiceData: InvoiceFormData = {
   client_name: "",
@@ -50,5 +53,6 @@ export const defaultInvoiceData: InvoiceFormData = {
   contact_number: "",
   column_widths: [2.5, 3.5],
   font_name: "Calibri",
-  icon_name: ""
+  icon_name: "",
+  paid: false
 };
