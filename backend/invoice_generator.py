@@ -64,7 +64,6 @@ from datetime import date, datetime
 from docx.enum.text import WD_COLOR_INDEX # type: ignore
 import yaml # type: ignore
 import re
-from docopt import docopt # type: ignore
 import sys
 from pathlib import Path
 
@@ -112,6 +111,66 @@ def get_pdf_path(docx_path):
     """Generate PDF path from DOCX path."""
     return docx_path.with_suffix('.pdf')
 
+def convert_to_pdf(docx_path: Path, logger, backend: str = 'libreoffice') -> Path:
+    """
+    Convert a DOCX file to PDF format using the selected backend.
+    Falls back to 'docx2pdf' if 'libreoffice' fails.
+    """
+    def try_docx2pdf_fallback() -> Path:
+        try:
+            from docx2pdf import convert
+            pdf_path = get_pdf_path(docx_path)
+            logger.info("Falling back to docx2pdf for PDF conversion...")
+            convert(str(docx_path), str(pdf_path))
+
+            if pdf_path.exists():
+                logger.info(f"PDF conversion successful (docx2pdf): {pdf_path}")
+                return pdf_path
+            else:
+                raise RuntimeError("docx2pdf fallback failed: Output file was not created.")
+        except ImportError:
+            raise RuntimeError("Fallback failed: docx2pdf is not installed. Run 'pip install docx2pdf'")
+        except Exception as e:
+            raise RuntimeError(f"Fallback to docx2pdf failed: {str(e)}")
+
+    if backend == 'libreoffice':
+        try:
+            subprocess.run(['which', 'unoconv'], check=True, capture_output=True)
+
+            pdf_path = get_pdf_path(docx_path)
+            logger.info(f"Converting DOCX to PDF using LibreOffice/unoconv: {pdf_path}")
+
+            result = subprocess.run(
+                [
+                    'unoconv',
+                    '--connection', 'socket,host=127.0.0.1,port=2002;urp;',
+                    '-f', 'pdf',
+                    str(docx_path)
+                ],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+
+            if not pdf_path.exists():
+                raise RuntimeError(f"unoconv ran but did not create output.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}")
+
+            logger.info("PDF conversion completed successfully (LibreOffice)")
+            return pdf_path
+
+        except Exception as e:
+            logger.warning(f"LibreOffice backend failed: {str(e)}")
+            return try_docx2pdf_fallback()
+
+    elif backend == 'docx2pdf':
+        return try_docx2pdf_fallback()
+
+    else:
+        error_msg = f"Unknown PDF backend: {backend}. Supported: 'libreoffice', 'docx2pdf'"
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
+
+'''
 def convert_to_pdf(docx_path: Path, logger, backend: str = 'libreoffice') -> Path:
     """
     Convert a DOCX file to PDF format using the selected backend.
@@ -167,6 +226,7 @@ def convert_to_pdf(docx_path: Path, logger, backend: str = 'libreoffice') -> Pat
         error_msg = f"Unknown PDF backend: {backend}. Supported: 'libreoffice', 'docx2pdf'"
         logger.error(error_msg)
         raise RuntimeError(error_msg)
+'''
 
 def load_details(file_path):
     """Load and validate configuration from YAML file."""
@@ -217,6 +277,8 @@ def load_details(file_path):
         raise
 
 def main():
+    from docopt import docopt # type: ignore
+
     """Main entry point for the invoice generator."""
     arguments = docopt(__doc__, version=f'Invoice Generator v{__version__}')
     
@@ -406,6 +468,25 @@ def main():
         footer_paragraph = doc.add_paragraph()
         run = footer_paragraph.add_run(footer_text)
         run.font.size = Pt(8)
+
+        # Add PAID stamp as a watermark in the footer, bottom left, if paid
+        if details.get('paid'):
+            try:
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                stamp_path = os.path.join(current_dir, 'paid_stamp.png')
+                if os.path.exists(stamp_path):
+                    section = doc.sections[0]
+                    footer = section.footer
+                    # Add a new paragraph for the paid stamp image
+                    paragraph = footer.add_paragraph()
+                    run = paragraph.add_run()
+                    run.add_picture(stamp_path, width=Inches(1.5))
+                    paragraph.paragraph_format.space_after = 0
+                    paragraph.paragraph_format.space_before = 0
+                else:
+                    logger.warning(f"PAID stamp image not found at {stamp_path}")
+            except Exception as e:
+                logger.error(f"Failed to add PAID watermark to footer: {e}")
 
         # Save the document with the new output path
         if logger.isEnabledFor(logging.INFO):
