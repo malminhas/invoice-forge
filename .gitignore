@@ -25,3 +25,14 @@ dist-ssr
 
 /invoices
 __pycache__
+
+terraform
+.terraform/*
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfvars
+*.tfvars.json
+*.tfvars.json.lock
+*.tfvars.json.lock.lock
+*.tfvars.json.lock.lock.lock
