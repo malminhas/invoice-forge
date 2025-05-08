@@ -143,16 +143,21 @@ def convert_to_pdf(docx_path: Path, logger, backend: str = 'libreoffice') -> Pat
             result = subprocess.run(
                 [
                     'unoconv',
-                    '--connection', 'socket,host=127.0.0.1,port=2002;urp;',
                     '-f', 'pdf',
                     str(docx_path)
                 ],
-                check=True,
                 capture_output=True,
                 text=True
             )
 
+            if result.returncode != 0:
+                logger.error(f"unoconv failed with exit code {result.returncode}")
+                logger.error(f"unoconv stdout:\n{result.stdout}")
+                logger.error(f"unoconv stderr:\n{result.stderr}")
+                raise RuntimeError(f"unoconv failed with exit code {result.returncode}")
+
             if not pdf_path.exists():
+                logger.error(f"unoconv ran but did not create output.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}")
                 raise RuntimeError(f"unoconv ran but did not create output.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}")
 
             logger.info("PDF conversion completed successfully (LibreOffice)")
