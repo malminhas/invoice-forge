@@ -67,3 +67,15 @@ variable "api_url_remote" {
   type        = string
   default     = ""
 } 
+
+variable "vite_base" {
+  description = "Vite base path for the build"
+  type        = string
+  default     = "/"
+}
+
+variable "vite_basename" {
+  description = "React Router basename for the build"
+  type        = string
+  default     = "/"
+}

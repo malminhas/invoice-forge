@@ -3,7 +3,11 @@ FROM node:20-alpine as build
 WORKDIR /app
 COPY . .
 ARG VITE_API_URL
+ARG VITE_BASE
+ARG VITE_BASENAME
 ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_BASE=$VITE_BASE
+ENV VITE_BASENAME=$VITE_BASENAME
 RUN npm install && npm run build
 
 # Production stage

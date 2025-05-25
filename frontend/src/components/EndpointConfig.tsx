@@ -12,7 +12,7 @@ const EndpointConfig = () => {
     if (savedEndpoint) {
       setEndpoint(savedEndpoint);
     } else {
-      const apiUrl = import.meta.env.VITE_API_URL;
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8083';
       const defaultEndpoint = `${apiUrl}/generate-invoice?format=pdf`;
       setEndpoint(defaultEndpoint);
       localStorage.setItem('pdfEndpoint', defaultEndpoint);

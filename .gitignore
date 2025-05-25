@@ -38,6 +38,7 @@ __pycache__
 *.tfvars.json.lock
 *.tfvars.json.lock.lock
 *.tfvars.json.lock.lock.lock
+*.terraform.tfstate.lock.info
 
 droplet_key.pub
 droplet_key

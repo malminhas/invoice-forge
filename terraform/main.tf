@@ -117,7 +117,7 @@ resource "null_resource" "build_frontend_image" {
   depends_on = [null_resource.cleanup_frontend]
   
   provisioner "local-exec" {
-    command = "docker buildx build --platform ${var.build_platform} --no-cache -t ${var.frontend_container_name}:latest --build-arg VITE_API_URL=${local.api_url} --load ${path.root}/../frontend"
+    command = "docker buildx build --platform ${var.build_platform} --no-cache -t ${var.frontend_container_name}:latest --build-arg VITE_API_URL=${local.api_url} --build-arg VITE_BASE=${var.vite_base} --build-arg VITE_BASENAME=${var.vite_basename} --load ${path.root}/../frontend"
   }
 }
 

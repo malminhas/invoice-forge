@@ -30,10 +30,10 @@ It leverages the core invoice generation logic from the invoice_generator.py scr
   uvicorn invoice_generator_api:app --reload
   
   # With custom host and port
-  uvicorn invoice_generator_api:app --host 0.0.0.0 --port 8080 --reload
+  uvicorn invoice_generator_api:app --host 0.0.0.0 --port 8000 --reload
   
   # Production mode (disable reload)
-  uvicorn invoice_generator_api:app --host 0.0.0.0 --port 8000
+  uvicorn invoice_generator_api:app --host 0.0.0.0 --port 8083
   
   # With verbose logging
   VERBOSE=True uvicorn invoice_generator_api:app --reload
@@ -42,8 +42,8 @@ It leverages the core invoice generation logic from the invoice_generator.py scr
   python -m uvicorn invoice_generator_api:app --reload
   ```
 
-- Access Swagger UI: http://localhost:8000/docs
-- Access ReDoc UI: http://localhost:8000/redoc
+- Access Swagger UI: http://localhost:8083/docs
+- Access ReDoc UI: http://localhost:8083/redoc
 - Send POST requests to /generate-invoice with appropriate JSON data
 
 ## Invoice Generation Process
@@ -67,7 +67,7 @@ For PDF conversion:
 
 ## Example API Request (using curl)
 
-curl -X POST "http://localhost:8000/generate-invoice?format=pdf" \\
+curl -X POST "http://localhost:8083/generate-invoice?format=pdf" \\
     -H "Content-Type: application/json" \\
     -d '{
         "client_name": "Mike Smith",
@@ -88,7 +88,7 @@ curl -X POST "http://localhost:8000/generate-invoice?format=pdf" \\
         "email": "contact@myconsulting.com",
         "contact_number": "07700 900123",
         "column_widths": [2.5, 3.5],
-        "font_name": "Calibri",
+        "font_name": "DejaVu Sans",
         "icon_name": "FizzbuzzConsultingIcon.png"
     }' \\
     -o invoice.pdf
@@ -99,11 +99,12 @@ import tempfile
 import logging
 import yaml # type: ignore
 import sys
+from contextlib import asynccontextmanager
 from typing import Dict, List, Union, Optional, Set # type: ignore
 from fastapi import FastAPI, HTTPException, Query, status # type: ignore
 from fastapi.responses import FileResponse # type: ignore
 from fastapi.middleware.cors import CORSMiddleware # type: ignore
-from pydantic import BaseModel, Field, validator # type: ignore
+from pydantic import BaseModel, Field, field_validator # type: ignore
 from pathlib import Path
 from enum import Enum
 from fastapi.openapi.utils import get_openapi # type: ignore
@@ -160,6 +161,17 @@ setup_logging(verbose=VERBOSE)
 
 logger.info(f"Starting Invoice Generator API with VERBOSE={VERBOSE}")
 
+# Lifespan event handler for startup and shutdown
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Invoice Generator API is starting up")
+    logger.info(f"Verbose logging is {'enabled' if VERBOSE else 'disabled'}")
+    logger.info(f"API documentation available at http://localhost:8083/docs")
+    yield
+    # Shutdown
+    logger.info("Invoice Generator API is shutting down")
+
 # Create FastAPI app with enhanced metadata
 app = FastAPI(
     title="Invoice Generator API",
@@ -187,6 +199,7 @@ See the Schema section below for the required and optional fields.
     license_info={
         "name": "MIT License",
     },
+    lifespan=lifespan,
 )
 
 # Add CORS middleware
@@ -313,9 +326,9 @@ class InvoiceDetails(BaseModel):
         example=[2.5, 3.5]
     )
     font_name: str = Field(
-        "Calibri", 
+        "DejaVu Sans", 
         description="Font name to use in the document",
-        example="Calibri"
+        example="DejaVu Sans"
     )
     icon_name: str = Field(
         "DioramaConsultingIcon.png", 
@@ -333,7 +346,8 @@ class InvoiceDetails(BaseModel):
         example=False
     )
     
-    @validator('services')
+    @field_validator('services')
+    @classmethod
     def validate_services(cls, v):
         """Validate that services contain date and hours in parentheses"""
         import re
@@ -370,7 +384,7 @@ class InvoiceDetails(BaseModel):
                 "email": "contact@myconsulting.com",
                 "contact_number": "07700 900123",
                 "column_widths": [2.5, 3.5],
-                "font_name": "Calibri",
+                "font_name": "DejaVu Sans",
                 "icon_name": "DioramaConsultingIcon.png",
                 "icon_data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+P+/HgAFdwI2hN4pSgAAAABJRU5ErkJggg=="
             }
@@ -392,8 +406,8 @@ def generate_invoice_document(details: Dict, output_path: Path, generate_pdf: bo
     style = doc.styles['Normal']
     font = style.font
     font.name = details['font_name']
-    font.size = Pt(12)
-    logger.debug(f"Set default font to {details['font_name']} with size 12pt")
+    font.size = Pt(11)
+    logger.debug(f"Set default font to {details['font_name']} with size 11pt")
 
     # Header with icon placeholder and invoice/client details
     table = doc.add_table(rows=1, cols=2)
@@ -530,8 +544,8 @@ def generate_invoice_document(details: Dict, output_path: Path, generate_pdf: bo
     table.style = 'Table Grid'
     # Set custom column widths: Date, Description, Total
     table.columns[0].width = Inches(1.0)
-    table.columns[1].width = Inches(4.0)
-    table.columns[2].width = Inches(1.0)
+    table.columns[1].width = Inches(4.0) # From 4.0 to 3.0
+    table.columns[2].width = Inches(1.0) # From 1.0 to 1.2
     hdr_cells = table.rows[0].cells
     hdr_cells[0].text = 'Date'
     hdr_cells[1].text = 'Description of Service'
@@ -836,17 +850,6 @@ async def log_requests(request, call_next):
     logger.debug(f"Response status: {response.status_code}")
     return response
 
-# Startup event handler
-@app.on_event("startup")
-async def startup_event():
-    logger.info("Invoice Generator API is starting up")
-    logger.info(f"Verbose logging is {'enabled' if VERBOSE else 'disabled'}")
-    logger.info(f"API documentation available at http://localhost:8000/docs")
-
-# Shutdown event handler  
-@app.on_event("shutdown")
-async def shutdown_event():
-    logger.info("Invoice Generator API is shutting down")
 
 # Custom OpenAPI schema generation
 def custom_openapi():
@@ -959,7 +962,7 @@ const invoiceData = {
     "email": "contact@testconsulting.com",
     "contact_number": "07700 900123",
     "column_widths": [2.5, 3.5],
-    "font_name": "Calibri",
+    "font_name": "DejaVu Sans",
     "icon_name": "DioramaConsultingIcon.png"
 };
             </pre>
@@ -976,7 +979,7 @@ const invoiceData = {
                     resultDiv.innerHTML = 'Testing connection...';
                     
                     try {
-                        const response = await fetch('http://localhost:8000/version');
+                        const response = await fetch('http://localhost:8083/version');
                         if (response.ok) {
                             const data = await response.json();
                             resultDiv.innerHTML = `<p>✅ Connection successful!</p>
@@ -1015,12 +1018,12 @@ const invoiceData = {
                             "email": "contact@testconsulting.com",
                             "contact_number": "07700 900123",
                             "column_widths": [2.5, 3.5],
-                            "font_name": "Calibri",
+                            "font_name": "DejaVu Sans",
                             "icon_name": "DioramaConsultingIcon.png"
                         };
                         
                         // Direct file download approach (binary data)
-                        const response = await fetch(`http://localhost:8000/generate-invoice?format=${format}`, {
+                        const response = await fetch(`http://localhost:8083/generate-invoice?format=${format}`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json'
@@ -1072,4 +1075,4 @@ if __name__ == "__main__":
     import uvicorn # type: ignore
     
     logger.info(f"Starting uvicorn server with VERBOSE={VERBOSE}")
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    uvicorn.run(app, host="0.0.0.0", port=8083) 

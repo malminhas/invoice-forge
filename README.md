@@ -95,7 +95,9 @@ npm install
 npm run dev
 ```
 
-4. The frontend will be available at http://localhost:8082
+4. The frontend will be available at http://localhost:5173
+
+**Note**: Both development and Docker deployment now use the same ports for consistency - frontend on 5173 (dev) or 8082 (Docker), backend on 8083 for both modes.
 
 Here is what the invoice creation form looks like:
 
@@ -134,21 +136,19 @@ cd backend
 uvicorn invoice_generator_api:app --reload --port 8083
 ```
 
-5. The backend API will be available at http://localhost:8083 (Docker deployment)
-   - API documentation: http://localhost:8000/docs (development) or http://localhost:8083/docs (Docker)
+5. The backend API will be available at http://localhost:8083
+   - API documentation: http://localhost:8083/docs
 
 ## API Documentation
 
 FastAPI includes automatic API documentation using Swagger UI and ReDoc:
 
-- **Swagger UI**: Access interactive API documentation at:
-  - Docker deployment: http://localhost:8083/docs
+- **Swagger UI**: Access interactive API documentation at http://localhost:8083/docs
   - This interface allows you to test API endpoints directly from the browser
   - View request/response models, required parameters, and response codes
   - Execute API calls with sample data
 
-- **ReDoc**: A more readable documentation version at:
-  - Docker deployment: http://localhost:8083/redoc
+- **ReDoc**: A more readable documentation version at http://localhost:8083/redoc
   - Better for reading and understanding the API structure
   - Includes detailed descriptions of all endpoints and schemas
 
@@ -157,6 +157,52 @@ The documentation is automatically generated from the API code and includes:
 - Request body schemas with validation rules
 - Response models and status codes
 - Authentication requirements (if applicable)
+
+## Development Workflow
+
+### Running Both Frontend and Backend in Development
+
+For local development, you'll typically want to run both the frontend and backend servers simultaneously:
+
+#### Terminal 1 - Backend Development Server
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install fastapi uvicorn pydantic python-docx pyyaml docopt
+uvicorn invoice_generator_api:app --reload --port 8083
+```
+Backend will be available at: http://localhost:8083
+
+#### Terminal 2 - Frontend Development Server
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Frontend will be available at: http://localhost:5173
+
+### Frontend-Backend Connection in Development
+
+The frontend development server (port 5173) is configured to connect to the backend server (port 8083). The frontend uses an endpoint configuration system where:
+
+1. **Consistent Port Setup**: Both development and Docker use backend port 8083
+2. **Endpoint Configuration**: Users can change the API endpoint via the frontend UI if needed
+3. **Local Storage**: The endpoint setting is saved in browser local storage
+4. **Environment Variables**: The frontend uses `VITE_API_URL` to determine the backend URL
+
+### Development Scenarios
+
+- **Frontend dev + Backend dev**: Frontend (5173) → Backend (8083)
+- **Frontend dev + Backend Docker**: Frontend (5173) → Backend (8083) - *same port, seamless*
+- **Frontend Docker + Backend dev**: Frontend (8082) → Backend (8083) - *requires Docker rebuild*
+- **Full Docker**: Frontend (8082) → Backend (8083) - *automatic configuration*
+
+### Benefits of Consistent Port Usage
+
+- **No port switching**: Development and Docker use the same backend port (8083)
+- **Simplified workflow**: No need to change endpoints when switching between dev and Docker
+- **Consistent testing**: Same API URLs work in both environments
 
 ## Usage
 
@@ -289,14 +335,14 @@ The application uses the following port configuration:
 
 #### Development Mode (Direct Node.js/Python)
 - **Frontend**: http://localhost:5173 (Vite dev server)
-- **Backend**: http://localhost:8000 (FastAPI with uvicorn)
+- **Backend**: http://localhost:8083 (FastAPI with uvicorn)
 
 #### Docker Deployment
 - **Frontend**: http://localhost:8082 (nginx serving built React app)
 - **Backend**: http://localhost:8083 (FastAPI in container)
 - **Docker Network**: `invoice-forge-network` (internal container communication)
 
-The frontend is automatically configured to connect to the correct backend URL based on the deployment environment through the `VITE_API_URL` environment variable.
+**Key Benefit**: Both development and Docker deployment use the same backend port (8083) for consistency. The frontend automatically connects to the correct backend URL through the `VITE_API_URL` environment variable.
 
 ### Architecture Support
 
