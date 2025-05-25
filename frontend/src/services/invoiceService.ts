@@ -111,7 +111,8 @@ export const generateInvoicePdf = async (invoice: Invoice): Promise<string> => {
 
     console.log("Preparing to send invoice data to API:", invoiceData);
     
-    const endpoint = localStorage.getItem('pdfEndpoint') || 'http://localhost:8000/generate-invoice?format=pdf';
+    const apiUrl = import.meta.env.VITE_API_URL;
+    const endpoint = localStorage.getItem('pdfEndpoint') || `${apiUrl}/generate-invoice?format=pdf`;
     console.log("Using endpoint:", endpoint);
     
     const response = await fetch(endpoint, {
@@ -210,7 +211,9 @@ export const generateInvoiceDocx = async (invoice: Invoice): Promise<string> => 
       invoice_number: Number(invoice.invoice_number),
       payment_terms_days: Number(invoice.payment_terms_days || 0)
     };
-    const endpoint = (localStorage.getItem('pdfEndpoint') || 'http://localhost:8000/generate-invoice?format=pdf').replace('format=pdf', 'format=docx');
+    const apiUrl = import.meta.env.VITE_API_URL;
+    const defaultEndpoint = `${apiUrl}/generate-invoice?format=pdf`;
+    const endpoint = (localStorage.getItem('pdfEndpoint') || defaultEndpoint).replace('format=pdf', 'format=docx');
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {

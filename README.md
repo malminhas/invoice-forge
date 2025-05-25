@@ -34,14 +34,14 @@ The project is divided into two main components:
 
 ```mermaid
 graph TD
-    subgraph Frontend
+    subgraph "Frontend Container (Port 8082)"
         A[React App] --> B[Invoice Form]
         A --> C[Invoice List]
         B --> D[PDF Generation Request]
         C --> E[Download/View PDF]
     end
     
-    subgraph Backend
+    subgraph "Backend Container (Port 8083)"
         F[FastAPI Server] --> G[Invoice Generator]
         G --> H[DOCX Creation]
         H --> I[PDF Conversion]
@@ -51,13 +51,21 @@ graph TD
         J[Browser LocalStorage] --- A
     end
     
-    D --> F
-    F --> K[Return PDF File]
-    K --> E
+    subgraph "Docker Network"
+        K[invoice-forge-network]
+    end
     
-    style Frontend fill:#d4f1f9,stroke:#333,stroke-width:1px
-    style Backend fill:#ffe6cc,stroke:#333,stroke-width:1px
+    D -->|"HTTP POST to :8083"| F
+    F -->|"Return PDF File"| L[PDF Response]
+    L --> E
+    
+    A -.->|"Connected via"| K
+    F -.->|"Connected via"| K
+    
+    style Frontend fill:#d4f1f9,stroke:#333,stroke-width:2px
+    style Backend fill:#ffe6cc,stroke:#333,stroke-width:2px
     style Storage fill:#e1d5e7,stroke:#333,stroke-width:1px
+    style K fill:#f0f0f0,stroke:#666,stroke-width:1px,stroke-dasharray: 5 5
 ```
 
 ## Installation and Setup
@@ -87,7 +95,7 @@ npm install
 npm run dev
 ```
 
-4. The frontend will be available at http://localhost:8080
+4. The frontend will be available at http://localhost:8082
 
 Here is what the invoice creation form looks like:
 
@@ -123,22 +131,24 @@ sudo apt-get install libreoffice unoconv
 4. Start the backend server
 ```sh
 cd backend
-uvicorn invoice_generator_api:app --reload
+uvicorn invoice_generator_api:app --reload --port 8083
 ```
 
-5. The backend API will be available at http://localhost:8000
-   - API documentation: http://localhost:8000/docs
+5. The backend API will be available at http://localhost:8083 (Docker deployment)
+   - API documentation: http://localhost:8000/docs (development) or http://localhost:8083/docs (Docker)
 
 ## API Documentation
 
 FastAPI includes automatic API documentation using Swagger UI and ReDoc:
 
-- **Swagger UI**: Access interactive API documentation at http://localhost:8000/docs
+- **Swagger UI**: Access interactive API documentation at:
+  - Docker deployment: http://localhost:8083/docs
   - This interface allows you to test API endpoints directly from the browser
   - View request/response models, required parameters, and response codes
   - Execute API calls with sample data
 
-- **ReDoc**: A more readable documentation version at http://localhost:8000/redoc
+- **ReDoc**: A more readable documentation version at:
+  - Docker deployment: http://localhost:8083/redoc
   - Better for reading and understanding the API structure
   - Includes detailed descriptions of all endpoints and schemas
 
@@ -177,12 +187,348 @@ The documentation is automatically generated from the API code and includes:
 - `GET /example-client`: Returns a test HTML client
 - `POST /generate-invoice`: Generate and download invoice (DOCX or PDF)
 
+## Deployment
+
+Invoice Forge includes automated deployment capabilities using Terraform and Docker, supporting both local development and remote server deployments.
+
+### Deployment Features
+
+- **Dual Environment Support**: Deploy locally or to remote servers
+- **Multi-Architecture Builds**: Support for both ARM64 (Apple Silicon) and AMD64 architectures
+- **Automated Container Management**: Build, deploy, and manage both frontend and backend containers
+- **Flexible Configuration**: Easy configuration through variables and tfvars files
+- **Cleanup and Optimization**: Automatic cleanup of old resources and optimized deployment process
+
+### Prerequisites
+
+- Docker installed and running
+- Terraform installed (>= 1.0)
+- For remote deployment:
+  - SSH access to remote server
+  - Private key file for SSH authentication
+
+### Quick Start
+
+#### Local Deployment
+
+1. Copy the example configuration:
+```bash
+cd terraform
+cp terraform.tfvars.example terraform.tfvars
+```
+
+2. Edit `terraform.tfvars` for local deployment:
+```hcl
+environment = "local"
+build_platform = "linux/amd64"  # or "linux/arm64" for Apple Silicon
+```
+
+3. Deploy:
+```bash
+terraform init
+terraform apply -auto-approve
+```
+
+4. Access your application:
+   - Frontend: http://localhost:8082
+   - Backend: http://localhost:8083
+   - Backend API docs: http://localhost:8083/docs
+
+#### Remote Deployment
+
+1. Configure `terraform.tfvars` for remote deployment:
+```hcl
+environment = "remote"
+droplet_ip = "your-server-ip"
+private_key_path = "/path/to/your/private/key"
+api_url_remote = "http://your-server-ip:8083"
+build_platform = "linux/amd64"
+```
+
+2. Deploy:
+```bash
+terraform apply -auto-approve
+```
+
+### Configuration Variables
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `environment` | Deployment environment (`local` or `remote`) | `"local"` | No |
+| `backend_port` | Port for backend container | `8083` | No |
+| `frontend_port` | Port for frontend container | `8082` | No |
+| `build_platform` | Docker build platform | `"linux/amd64"` | No |
+| `droplet_ip` | Remote server IP address | `""` | Yes (for remote) |
+| `private_key_path` | Path to SSH private key | `""` | Yes (for remote) |
+| `api_url_local` | API URL for local environment | `"http://localhost:8083"` | No |
+| `api_url_remote` | API URL for remote environment | `""` | Yes (for remote) |
+
+### Command Line Usage
+
+#### Local Deployment with Command Line Variables
+```bash
+cd terraform
+terraform apply -auto-approve \
+  -var="environment=local" \
+  -var="build_platform=linux/arm64"
+```
+
+#### Remote Deployment with Command Line Variables
+```bash
+cd terraform
+terraform apply -auto-approve \
+  -var="environment=remote" \
+  -var="droplet_ip=YOUR_SERVER_IP" \
+  -var="private_key_path=/path/to/key" \
+  -var="api_url_remote=http://YOUR_SERVER_IP:8083"
+```
+
+### Port Configuration
+
+The application uses the following port configuration:
+
+#### Development Mode (Direct Node.js/Python)
+- **Frontend**: http://localhost:5173 (Vite dev server)
+- **Backend**: http://localhost:8000 (FastAPI with uvicorn)
+
+#### Docker Deployment
+- **Frontend**: http://localhost:8082 (nginx serving built React app)
+- **Backend**: http://localhost:8083 (FastAPI in container)
+- **Docker Network**: `invoice-forge-network` (internal container communication)
+
+The frontend is automatically configured to connect to the correct backend URL based on the deployment environment through the `VITE_API_URL` environment variable.
+
+### Architecture Support
+
+#### Apple Silicon (M1/M2/M3)
+```bash
+cd terraform
+terraform apply -var="build_platform=linux/arm64" -auto-approve
+```
+
+#### Intel/AMD or Remote x86 Servers
+```bash
+cd terraform
+terraform apply -var="build_platform=linux/amd64" -auto-approve
+```
+
+### Deployment Process
+
+#### Local Deployment
+1. Cleanup old containers and images
+2. Build backend and frontend images using buildx
+3. Create Docker network
+4. Start backend container with proper networking
+5. Start frontend container with API URL configuration
+
+#### Remote Deployment
+1. Cleanup old containers and images locally
+2. Build backend and frontend images using buildx
+3. Save images to tar files
+4. Copy tar files to remote server via SCP
+5. Load images on remote server
+6. Start containers with proper configuration and restart policies
+
+### Troubleshooting
+
+#### Check Container Status
+```bash
+docker ps
+```
+
+#### View Container Logs
+```bash
+docker logs invoice-forge-backend
+docker logs invoice-forge-frontend
+```
+
+#### Check Images
+```bash
+docker images | grep invoice-forge
+```
+
+#### Clean Up Everything
+```bash
+cd terraform
+terraform destroy -auto-approve
+```
+
+#### Manual Container Cleanup
+```bash
+docker rm -f invoice-forge-backend invoice-forge-frontend
+docker rmi invoice-forge-backend:latest invoice-forge-frontend:latest
+```
+
+### Common Issues
+
+1. **Build Platform Mismatch**: Ensure `build_platform` matches your target architecture
+2. **SSH Connection Issues**: Verify `droplet_ip` and `private_key_path` are correct
+3. **Port Conflicts**: Check if ports are already in use locally
+4. **API URL Configuration**: Ensure `api_url_remote` is correctly set for remote deployments
+
+### Terraform Commands Reference
+
+- `terraform init`: Initialize Terraform and download providers
+- `terraform plan`: Show execution plan without making changes
+- `terraform apply`: Apply changes to create/update resources
+- `terraform destroy`: Remove all created resources
+- `terraform state list`: List all resources in current state
+- `terraform output`: Show output values
+
+### Deployment File Structure
+
+```
+terraform/
+├── main.tf                 # Main Terraform configuration
+├── variables.tf            # Variable definitions
+├── outputs.tf              # Output definitions (URLs, commands, deployment info)
+├── terraform.tfvars.example # Example configuration
+└── terraform.tfvars       # Your configuration (create from example)
+```
+
+The `outputs.tf` file provides essential post-deployment information including:
+- Application URLs (frontend, backend, API docs)
+- Container management commands
+- Network configuration details
+- Quick access and troubleshooting commands
+
+### Post-Deployment Verification
+
+After a successful deployment, Terraform provides comprehensive outputs to help you verify and interact with your deployment. Use these commands to check your deployment status and access your application.
+
+#### Quick Status Check
+```bash
+# View all deployment information
+terraform output
+
+# Get just the URLs you need
+terraform output frontend_url
+terraform output backend_url
+terraform output swagger_url
+```
+
+#### Access Your Application
+```bash
+# Open frontend in browser (macOS)
+$(terraform output -json quick_access | jq -r '.open_frontend')
+
+# Open API documentation
+$(terraform output -json quick_access | jq -r '.open_api_docs')
+
+# Test backend connectivity
+$(terraform output -json quick_access | jq -r '.test_backend')
+```
+
+#### Container Health Checks
+```bash
+# Check if containers are running
+$(terraform output -json useful_commands | jq -r '.check_containers')
+
+# View backend logs
+$(terraform output -json useful_commands | jq -r '.check_backend_logs')
+
+# View frontend logs
+$(terraform output -json useful_commands | jq -r '.check_frontend_logs')
+
+# Inspect Docker network
+$(terraform output -json useful_commands | jq -r '.network_inspect')
+```
+
+#### Troubleshooting Commands
+```bash
+# Restart backend container
+$(terraform output -json useful_commands | jq -r '.restart_backend')
+
+# Restart frontend container
+$(terraform output -json useful_commands | jq -r '.restart_frontend')
+
+# Access backend container shell
+$(terraform output -json useful_commands | jq -r '.exec_backend')
+
+# Complete cleanup
+$(terraform output -json useful_commands | jq -r '.cleanup')
+```
+
+#### Deployment Information Summary
+```bash
+# Get structured deployment info
+terraform output deployment_info
+
+# Example output:
+# {
+#   "api_url" = "http://localhost:8083"
+#   "backend_url" = "http://localhost:8083"
+#   "build_platform" = "linux/arm64"
+#   "environment" = "local"
+#   "frontend_url" = "http://localhost:8082"
+# }
+```
+
+#### Network Configuration
+```bash
+# View network details
+terraform output network_info
+
+# Shows:
+# {
+#   "backend_internal_port" = 8083
+#   "frontend_internal_port" = 8082
+#   "network_name" = "invoice-forge-network"
+# }
+```
+
+#### Automated Testing Script
+Create a simple verification script using the outputs:
+
+```bash
+#!/bin/bash
+# verify-deployment.sh
+
+echo "🚀 Verifying Invoice Forge deployment..."
+
+# Get URLs from Terraform outputs
+FRONTEND_URL=$(terraform output -raw frontend_url)
+BACKEND_URL=$(terraform output -raw backend_url)
+SWAGGER_URL=$(terraform output -raw swagger_url)
+
+echo "📱 Frontend URL: $FRONTEND_URL"
+echo "🔧 Backend URL: $BACKEND_URL"
+echo "📚 API Docs: $SWAGGER_URL"
+
+# Test backend health
+echo "🔍 Testing backend connectivity..."
+if curl -f -s "$BACKEND_URL" > /dev/null; then
+    echo "✅ Backend is responding"
+else
+    echo "❌ Backend is not responding"
+    exit 1
+fi
+
+# Test API docs
+echo "🔍 Testing API documentation..."
+if curl -f -s "$SWAGGER_URL" > /dev/null; then
+    echo "✅ API documentation is accessible"
+else
+    echo "❌ API documentation is not accessible"
+fi
+
+echo "🎉 Deployment verification complete!"
+```
+
+### Security Notes
+
+- Keep your `terraform.tfvars` file secure and don't commit it to version control
+- Ensure your SSH private key has appropriate permissions (600)
+- Consider using SSH agent for key management
+- For production deployments, consider using Terraform Cloud or similar for state management
+
 ## Development
 
 This project was built with:
 
 - **Frontend**: Vite, TypeScript, React, shadcn-ui, Tailwind CSS
 - **Backend**: Python, FastAPI, python-docx, PyYAML
+- **Deployment**: Terraform, Docker, Docker Buildx
 
 You can continue development in several ways:
 

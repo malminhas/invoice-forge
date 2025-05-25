@@ -15,8 +15,10 @@ COPY . /app
 RUN pip3 install --no-cache-dir --upgrade pip && \
     if [ -f requirements.txt ]; then pip3 install --no-cache-dir -r requirements.txt; fi
 
-EXPOSE 8000
+# Accept build argument for port (no default - must be provided)
+ARG PORT
+EXPOSE $PORT
 
 CMD libreoffice --headless --nologo --nofirststartwizard --accept="socket,host=127.0.0.1,port=2002;urp;" & \
     sleep 5 && \
-    uvicorn invoice_generator_api:app --host 0.0.0.0 --port 8000
+    uvicorn invoice_generator_api:app --host 0.0.0.0 --port $PORT

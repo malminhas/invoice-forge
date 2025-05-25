@@ -26,13 +26,18 @@ dist-ssr
 /invoices
 __pycache__
 
-terraform
+# Terraform state and sensitive files
+.terraform
 .terraform/*
 .terraform.lock.hcl
 *.tfstate
 *.tfstate.backup
 *.tfvars
+!terraform.tfvars.example
 *.tfvars.json
 *.tfvars.json.lock
 *.tfvars.json.lock.lock
 *.tfvars.json.lock.lock.lock
+
+droplet_key.pub
+droplet_key
