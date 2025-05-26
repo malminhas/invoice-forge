@@ -23,7 +23,25 @@ locals {
   env_content = fileexists("${path.root}/../.env") ? file("${path.root}/../.env") : ""
   workspace_dir = abspath(path.root)
   project_root = dirname(local.workspace_dir)
-  api_url = var.environment == "local" ? var.api_url_local : var.api_url_remote
+  
+  # Determine if we're deploying to a subdirectory
+  is_subdirectory = var.subdirectory_name != ""
+  
+  # Dynamic API URL based on environment and subdirectory
+  api_url = var.environment == "local" ? var.api_url_local : (
+    var.api_url_remote != "" ? var.api_url_remote : (
+      local.is_subdirectory ? 
+      "https://${var.remote_domain}/${var.subdirectory_name}-api" : 
+      "https://${var.remote_domain}/api"
+    )
+  )
+  
+  # Dynamic root path for FastAPI
+  api_root_path = var.environment == "local" ? "" : (
+    local.is_subdirectory ? 
+    "/${var.subdirectory_name}-api" : 
+    "/api"
+  )
 }
 
 # Create a Docker network for local deployment
@@ -73,7 +91,7 @@ resource "null_resource" "build_backend_image" {
   depends_on = [null_resource.cleanup_backend]
   
   provisioner "local-exec" {
-    command = "docker buildx build --platform ${var.build_platform} --no-cache -t ${var.backend_container_name}:latest --build-arg PORT=${var.backend_port} --load ${path.root}/../backend"
+    command = "docker buildx build --platform ${var.build_platform} --no-cache -t ${var.backend_container_name}:latest --build-arg PORT=${var.backend_port} --build-arg ROOT_PATH=${local.api_root_path} --load ${path.root}/../backend"
   }
 }
 

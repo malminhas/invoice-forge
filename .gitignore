@@ -42,3 +42,5 @@ __pycache__
 
 droplet_key.pub
 droplet_key
+
+*.tar

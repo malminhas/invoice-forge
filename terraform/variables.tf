@@ -66,7 +66,13 @@ variable "api_url_remote" {
   description = "API URL for remote environment"
   type        = string
   default     = ""
-} 
+}
+
+variable "remote_domain" {
+  description = "Domain name for remote deployment (without https://)"
+  type        = string
+  default     = ""
+}
 
 variable "vite_base" {
   description = "Vite base path for the build"
@@ -78,4 +84,10 @@ variable "vite_basename" {
   description = "React Router basename for the build"
   type        = string
   default     = "/"
+}
+
+variable "subdirectory_name" {
+  description = "Name of the subdirectory for deployment (empty for root deployment)"
+  type        = string
+  default     = ""
 }

@@ -1,26 +1,45 @@
 output "frontend_url" {
   description = "URL to access the frontend"
-  value = var.environment == "local" ? "http://localhost:${var.frontend_port}" : "http://${var.droplet_ip}:${var.frontend_port}"
+  value = var.environment == "local" ? (
+    var.subdirectory_name != "" ? 
+    "http://localhost:${var.frontend_port}/${var.subdirectory_name}" : 
+    "http://localhost:${var.frontend_port}"
+  ) : (
+    var.subdirectory_name != "" ? 
+    "http://${var.droplet_ip}:${var.frontend_port}/${var.subdirectory_name}" : 
+    "http://${var.droplet_ip}:${var.frontend_port}"
+  )
 }
 
 output "backend_url" {
   description = "URL to access the backend API"
-  value = var.environment == "local" ? "http://localhost:${var.backend_port}" : "http://${var.droplet_ip}:${var.backend_port}"
+  value = local.api_url
 }
 
 output "swagger_url" {
   description = "URL to access the Swagger documentation"
-  value = var.environment == "local" ? "http://localhost:${var.backend_port}/docs" : "http://${var.droplet_ip}:${var.backend_port}/docs"
+  value = "${local.api_url}/docs"
 }
 
 output "deployment_info" {
   description = "Information about the deployment"
   value = {
     environment = var.environment
-    backend_url = var.environment == "local" ? "http://localhost:${var.backend_port}" : "http://${var.droplet_ip}:${var.backend_port}"
-    frontend_url = var.environment == "local" ? "http://localhost:${var.frontend_port}" : "http://${var.droplet_ip}:${var.frontend_port}"
+    deployment_type = var.subdirectory_name != "" ? "subdirectory (/${var.subdirectory_name})" : "root"
+    backend_url = local.api_url
+    frontend_url = var.environment == "local" ? (
+      var.subdirectory_name != "" ? 
+      "http://localhost:${var.frontend_port}/${var.subdirectory_name}" : 
+      "http://localhost:${var.frontend_port}"
+    ) : (
+      var.subdirectory_name != "" ? 
+      "http://${var.droplet_ip}:${var.frontend_port}/${var.subdirectory_name}" : 
+      "http://${var.droplet_ip}:${var.frontend_port}"
+    )
     api_url = local.api_url
+    api_root_path = local.api_root_path
     build_platform = var.build_platform
+    remote_domain = var.remote_domain
   }
 }
 

@@ -1,19 +1,19 @@
 #!/bin/bash
 
-# Deploy Invoice Forge with subdirectory support
-# Usage: ./deploy-subdirectory.sh [local|remote] [subdirectory_name]
+# Deploy Invoice Forge with optional subdirectory support
+# Usage: ./deploy.sh [local|remote] [subdirectory_name]
 #
 # Examples:
-#   ./deploy-subdirectory.sh local                    # Deploy locally at /invoice-forge
-#   ./deploy-subdirectory.sh local my-app             # Deploy locally at /my-app
-#   ./deploy-subdirectory.sh remote invoice-forge     # Deploy remotely at /invoice-forge
-#   ./deploy-subdirectory.sh remote                   # Deploy remotely at /invoice-forge (default)
+#   ./deploy.sh local                    # Deploy locally at root (http://localhost:8082)
+#   ./deploy.sh local my-app             # Deploy locally at /my-app (http://localhost:8082/my-app)
+#   ./deploy.sh remote                   # Deploy remotely at root (http://server:8082)
+#   ./deploy.sh remote invoice-forge     # Deploy remotely at /invoice-forge (http://server:8082/invoice-forge)
 
 set -e  # Exit on any error
 
 # Default values
 ENVIRONMENT="${1:-local}"
-SUBDIRECTORY="${2:-invoice-forge}"
+SUBDIRECTORY="${2:-}"  # Empty default means root deployment
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Validate environment parameter
@@ -39,8 +39,14 @@ check_remote_config() {
 
 # Function to deploy locally
 deploy_local() {
-    echo "🚀 Deploying Invoice Forge locally with subdirectory support..."
-    echo "📍 Frontend will be accessible at: http://localhost:8082/$SUBDIRECTORY"
+    echo "🚀 Deploying Invoice Forge locally..."
+    if [[ -z "$SUBDIRECTORY" ]]; then
+        echo "📍 Frontend will be accessible at: http://localhost:8082"
+        echo "📍 Deployment: Root (no subdirectory)"
+    else
+        echo "📍 Frontend will be accessible at: http://localhost:8082/$SUBDIRECTORY"
+        echo "📍 Deployment: Subdirectory (/$SUBDIRECTORY)"
+    fi
     echo "📍 Backend API will be accessible at: http://localhost:8083"
     echo "🏗️  Build platform: linux/arm64 (local)"
     echo ""
@@ -57,12 +63,25 @@ deploy_local() {
 
     # Deploy with local configuration
     echo "🚀 Starting deployment..."
-    terraform apply -auto-approve \
-        -var="environment=local" \
-        -var="build_platform=linux/arm64" \
-        -var="vite_base=/$SUBDIRECTORY/" \
-        -var="vite_basename=/$SUBDIRECTORY" \
-        -var="api_url_local=http://localhost:8083"
+    if [[ -z "$SUBDIRECTORY" ]]; then
+        # Root deployment (no subdirectory)
+        terraform apply -auto-approve \
+            -var="environment=local" \
+            -var="build_platform=linux/arm64" \
+            -var="vite_base=/" \
+            -var="vite_basename=/" \
+            -var="subdirectory_name=" \
+            -var="api_url_local=http://localhost:8083"
+    else
+        # Subdirectory deployment
+        terraform apply -auto-approve \
+            -var="environment=local" \
+            -var="build_platform=linux/arm64" \
+            -var="vite_base=/$SUBDIRECTORY/" \
+            -var="vite_basename=/$SUBDIRECTORY" \
+            -var="subdirectory_name=$SUBDIRECTORY" \
+            -var="api_url_local=http://localhost:8083"
+    fi
 
     if [ $? -eq 0 ]; then
         echo ""
@@ -76,7 +95,11 @@ deploy_local() {
         echo ""
         
         echo "🌐 Access your application:"
-        echo "   Frontend: http://localhost:8082/$SUBDIRECTORY"
+        if [[ -z "$SUBDIRECTORY" ]]; then
+            echo "   Frontend: http://localhost:8082"
+        else
+            echo "   Frontend: http://localhost:8082/$SUBDIRECTORY"
+        fi
         echo "   Backend API: http://localhost:8083"
         echo "   API Docs: http://localhost:8083/docs"
         echo ""
@@ -94,7 +117,7 @@ deploy_local() {
 
 # Function to deploy remotely
 deploy_remote() {
-    echo "🚀 Deploying Invoice Forge remotely with subdirectory support..."
+    echo "🚀 Deploying Invoice Forge remotely..."
     
     # Read server IP from terraform.tfvars
     SERVER_IP=$(grep -E '^droplet_ip\s*=' "$SCRIPT_DIR/terraform.tfvars" | sed 's/.*=\s*"\([^"]*\)".*/\1/')
@@ -104,7 +127,13 @@ deploy_remote() {
         exit 1
     fi
     
-    echo "📍 Frontend will be accessible at: http://$SERVER_IP:8082/$SUBDIRECTORY"
+    if [[ -z "$SUBDIRECTORY" ]]; then
+        echo "📍 Frontend will be accessible at: http://$SERVER_IP:8082"
+        echo "📍 Deployment: Root (no subdirectory)"
+    else
+        echo "📍 Frontend will be accessible at: http://$SERVER_IP:8082/$SUBDIRECTORY"
+        echo "📍 Deployment: Subdirectory (/$SUBDIRECTORY)"
+    fi
     echo "📍 Backend API will be accessible at: http://$SERVER_IP:8083"
     echo "🏗️  Build platform: linux/amd64 (remote)"
     echo ""
@@ -121,11 +150,23 @@ deploy_remote() {
 
     # Deploy with remote configuration
     echo "🚀 Starting deployment..."
-    terraform apply -auto-approve \
-        -var="environment=remote" \
-        -var="build_platform=linux/amd64" \
-        -var="vite_base=/$SUBDIRECTORY/" \
-        -var="vite_basename=/$SUBDIRECTORY"
+    if [[ -z "$SUBDIRECTORY" ]]; then
+        # Root deployment (no subdirectory)
+        terraform apply -auto-approve \
+            -var="environment=remote" \
+            -var="build_platform=linux/amd64" \
+            -var="vite_base=/" \
+            -var="vite_basename=/" \
+            -var="subdirectory_name="
+    else
+        # Subdirectory deployment
+        terraform apply -auto-approve \
+            -var="environment=remote" \
+            -var="build_platform=linux/amd64" \
+            -var="vite_base=/$SUBDIRECTORY/" \
+            -var="vite_basename=/$SUBDIRECTORY" \
+            -var="subdirectory_name=$SUBDIRECTORY"
+    fi
 
     if [ $? -eq 0 ]; then
         echo ""
@@ -139,7 +180,11 @@ deploy_remote() {
         echo ""
         
         echo "🌐 Access your application:"
-        echo "   Frontend: http://$SERVER_IP:8082/$SUBDIRECTORY"
+        if [[ -z "$SUBDIRECTORY" ]]; then
+            echo "   Frontend: http://$SERVER_IP:8082"
+        else
+            echo "   Frontend: http://$SERVER_IP:8082/$SUBDIRECTORY"
+        fi
         echo "   Backend API: http://$SERVER_IP:8083"
         echo "   API Docs: http://$SERVER_IP:8083/docs"
         echo ""
@@ -160,7 +205,11 @@ deploy_remote() {
 echo "Invoice Forge Deployment Script"
 echo "==============================="
 echo "Environment: $ENVIRONMENT"
-echo "Subdirectory: /$SUBDIRECTORY"
+if [[ -z "$SUBDIRECTORY" ]]; then
+    echo "Deployment: Root (no subdirectory)"
+else
+    echo "Subdirectory: /$SUBDIRECTORY"
+fi
 echo ""
 
 # Change to terraform directory

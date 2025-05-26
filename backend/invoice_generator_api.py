@@ -200,6 +200,7 @@ See the Schema section below for the required and optional fields.
         "name": "MIT License",
     },
     lifespan=lifespan,
+    root_path=os.environ.get('ROOT_PATH', '')
 )
 
 # Add CORS middleware
@@ -544,8 +545,8 @@ def generate_invoice_document(details: Dict, output_path: Path, generate_pdf: bo
     table.style = 'Table Grid'
     # Set custom column widths: Date, Description, Total
     table.columns[0].width = Inches(1.0)
-    table.columns[1].width = Inches(4.0) # From 4.0 to 3.0
-    table.columns[2].width = Inches(1.0) # From 1.0 to 1.2
+    table.columns[1].width = Inches(4.0)
+    table.columns[2].width = Inches(1.0)
     hdr_cells = table.rows[0].cells
     hdr_cells[0].text = 'Date'
     hdr_cells[1].text = 'Description of Service'
