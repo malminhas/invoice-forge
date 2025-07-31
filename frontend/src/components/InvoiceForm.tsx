@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Separator } from "@/components/ui/separator";
 import { Invoice, InvoiceFormData, defaultInvoiceData } from "@/types/invoice";
 import { FileText, Plus, Trash2, Save, Upload, Image, Download, HelpCircle, FileOutput, Check, ChevronsUpDown } from "lucide-react";
-import { addInvoice, updateInvoice, callGenerateInvoiceApi, importInvoiceSettings, callGenerateInvoiceDocxApi } from "@/services/invoiceService";
+import { addInvoice, updateInvoice, callGenerateInvoiceApi, importInvoiceSettings, callGenerateInvoiceDocxApi, getImageData } from "@/services/invoiceService";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import yaml from 'js-yaml';
@@ -62,8 +62,14 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         ...initialData
       }));
       
-      // Set image preview if icon_data exists
-      if (initialData.icon_data) {
+      // Set image preview - check for icon_hash first, then fallback to icon_data
+      if (initialData.icon_hash) {
+        getImageData(initialData.icon_hash).then(imageData => {
+          if (imageData) {
+            setImagePreview(imageData);
+          }
+        });
+      } else if (initialData.icon_data) {
         setImagePreview(initialData.icon_data);
       }
     }

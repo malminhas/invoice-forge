@@ -341,6 +341,11 @@ class InvoiceDetails(BaseModel):
         description="Base64 encoded image data for the icon",
         example="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
     )
+    icon_hash: Optional[str] = Field(
+        None,
+        description="Hash reference to the stored image data",
+        example="abc123def456"
+    )
     paid: Optional[bool] = Field(
         False,
         description="Whether the invoice has been paid",

@@ -4,6 +4,91 @@ import yaml from 'js-yaml';
 
 // Mock storage as we don't have a backend yet
 const STORAGE_KEY = "invoices";
+const DB_NAME = "InvoiceForgeDB";
+const DB_VERSION = 1;
+const IMAGE_STORE = "images";
+
+// IndexedDB helper functions
+const openDB = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(IMAGE_STORE)) {
+        db.createObjectStore(IMAGE_STORE);
+      }
+    };
+  });
+};
+
+// Save image to IndexedDB
+export const saveImageToIndexedDB = async (imageData: string, imageHash: string): Promise<void> => {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(IMAGE_STORE, 'readwrite');
+    const store = tx.objectStore(IMAGE_STORE);
+    
+    return new Promise((resolve, reject) => {
+      const request = store.put(imageData, imageHash);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error("Error saving image to IndexedDB:", error);
+    throw error;
+  }
+};
+
+// Get image from IndexedDB
+export const getImageFromIndexedDB = async (imageHash: string): Promise<string | null> => {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(IMAGE_STORE, 'readonly');
+    const store = tx.objectStore(IMAGE_STORE);
+    
+    return new Promise((resolve, reject) => {
+      const request = store.get(imageHash);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error("Error getting image from IndexedDB:", error);
+    return null;
+  }
+};
+
+// Delete image from IndexedDB
+export const deleteImageFromIndexedDB = async (imageHash: string): Promise<void> => {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(IMAGE_STORE, 'readwrite');
+    const store = tx.objectStore(IMAGE_STORE);
+    
+    return new Promise((resolve, reject) => {
+      const request = store.delete(imageHash);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error("Error deleting image from IndexedDB:", error);
+    throw error;
+  }
+};
+
+// Simple hash function for images
+const hashImage = (imageData: string): string => {
+  let hash = 0;
+  for (let i = 0; i < imageData.length; i++) {
+    const char = imageData.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return hash.toString(36);
+};
 
 // Get invoices from local storage
 export const getInvoices = (): Invoice[] => {
@@ -32,15 +117,26 @@ export const generateId = (): string => {
 };
 
 // Add a new invoice
-export const addInvoice = (invoice: Invoice): Invoice => {
+export const addInvoice = async (invoice: Invoice): Promise<Invoice> => {
   try {
     const invoices = getInvoices();
+    
+    // Handle image storage
+    let iconHash = invoice.icon_hash;
+    
+    if (invoice.icon_data && !iconHash) {
+      // Generate hash and store image in IndexedDB
+      iconHash = hashImage(invoice.icon_data);
+      await saveImageToIndexedDB(invoice.icon_data, iconHash);
+    }
+    
     const newInvoice = { 
       ...invoice, 
       id: generateId(),
-      // Ensure icon data is properly saved
+      // Use icon_hash instead of icon_data for storage efficiency
       icon_name: invoice.icon_name || "",
-      icon_data: invoice.icon_data || null,
+      icon_hash: iconHash || null,
+      icon_data: undefined, // Don't store full image data in invoice
       // Include service details
       service_date: invoice.service_date || "",
       service_description: invoice.service_description || ""
@@ -56,7 +152,7 @@ export const addInvoice = (invoice: Invoice): Invoice => {
 };
 
 // Update an existing invoice
-export const updateInvoice = (invoice: Invoice): Invoice => {
+export const updateInvoice = async (invoice: Invoice): Promise<Invoice> => {
   try {
     if (!invoice.id) {
       throw new Error("Invoice ID is required for updates");
@@ -69,22 +165,34 @@ export const updateInvoice = (invoice: Invoice): Invoice => {
       throw new Error("Invoice not found");
     }
     
-    // Ensure icon_data is properly handled
-    // If the new invoice has icon_data, use it (new image uploaded)
-    // If not, preserve the existing icon_data from the stored invoice
-    if (!invoice.icon_data) {
-      invoice.icon_data = invoices[index].icon_data;
+    // Handle image storage
+    let iconHash = invoice.icon_hash;
+    
+    if (invoice.icon_data) {
+      // Always store new image data when present, regardless of existing hash
+      iconHash = hashImage(invoice.icon_data);
+      await saveImageToIndexedDB(invoice.icon_data, iconHash);
+    } else if (!iconHash) {
+      // Preserve existing icon_hash if no new image
+      iconHash = invoices[index].icon_hash;
     }
     
-    // Also ensure icon_name is preserved if not provided
+    // Ensure icon_name is preserved if not provided
     if (!invoice.icon_name && invoices[index].icon_name) {
       invoice.icon_name = invoices[index].icon_name;
     }
     
-    invoices[index] = invoice;
+    // Update the invoice with hash instead of full image data
+    const updatedInvoice = {
+      ...invoice,
+      icon_hash: iconHash,
+      icon_data: undefined // Don't store full image data in invoice
+    };
+    
+    invoices[index] = updatedInvoice;
     saveInvoices(invoices);
     toast.success("Invoice updated successfully");
-    return invoice;
+    return updatedInvoice;
   } catch (error) {
     console.error("Error updating invoice:", error);
     toast.error("Failed to update invoice");
@@ -107,13 +215,20 @@ export const deleteInvoice = (id: string): void => {
 
 export const generateInvoicePdf = async (invoice: Invoice): Promise<string> => {
   try {
+    // Get image data from IndexedDB if we have an icon_hash
+    let iconData = invoice.icon_data;
+    if (invoice.icon_hash && !iconData) {
+      iconData = await getImageFromIndexedDB(invoice.icon_hash);
+    }
+    
     // Clean and prepare the invoice data
     const invoiceData = {
       ...invoice,
       hourly_rate: Number(invoice.hourly_rate),
       vat_rate: Number(invoice.vat_rate),
       invoice_number: Number(invoice.invoice_number),
-      payment_terms_days: Number(invoice.payment_terms_days || 0)
+      payment_terms_days: Number(invoice.payment_terms_days || 0),
+      icon_data: iconData // Include the actual image data for the backend
     };
 
     console.log("Preparing to send invoice data to API:", invoiceData);
@@ -212,12 +327,19 @@ export const importInvoiceSettings = (settings: Record<string, any>): Invoice =>
 
 export const generateInvoiceDocx = async (invoice: Invoice): Promise<string> => {
   try {
+    // Get image data from IndexedDB if we have an icon_hash
+    let iconData = invoice.icon_data;
+    if (invoice.icon_hash && !iconData) {
+      iconData = await getImageFromIndexedDB(invoice.icon_hash);
+    }
+    
     const invoiceData = {
       ...invoice,
       hourly_rate: Number(invoice.hourly_rate),
       vat_rate: Number(invoice.vat_rate),
       invoice_number: Number(invoice.invoice_number),
-      payment_terms_days: Number(invoice.payment_terms_days || 0)
+      payment_terms_days: Number(invoice.payment_terms_days || 0),
+      icon_data: iconData // Include the actual image data for the backend
     };
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8083';
     const defaultEndpoint = `${apiUrl}/generate-invoice?format=pdf`;
@@ -252,5 +374,44 @@ export const callGenerateInvoiceDocxApi = async (invoice: Invoice): Promise<stri
     console.error('API call failed:', error);
     toast.error('Failed to call invoice DOCX generation API');
     throw error;
+  }
+};
+
+// Get image data by hash (for form preview)
+export const getImageData = async (imageHash: string): Promise<string | null> => {
+  return await getImageFromIndexedDB(imageHash);
+};
+
+// Clear all images from IndexedDB
+export const clearAllImages = async (): Promise<void> => {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(IMAGE_STORE, 'readwrite');
+    const store = tx.objectStore(IMAGE_STORE);
+    
+    return new Promise((resolve, reject) => {
+      const request = store.clear();
+      request.onsuccess = () => {
+        toast.success("All images cleared successfully");
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error("Error clearing images:", error);
+    toast.error("Failed to clear images");
+    throw error;
+  }
+};
+
+// Clear all data (invoices + images)
+export const clearAllInvoices = (): void => {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    clearAllImages(); // This will clear IndexedDB images
+    toast.success("All invoices and images cleared successfully");
+  } catch (error) {
+    console.error("Error clearing invoices:", error);
+    toast.error("Failed to clear invoices");
   }
 };
