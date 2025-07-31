@@ -69,9 +69,16 @@ export const updateInvoice = (invoice: Invoice): Invoice => {
       throw new Error("Invoice not found");
     }
     
-    // Ensure icon_data is preserved
-    if (!invoice.icon_data && invoices[index].icon_data) {
+    // Ensure icon_data is properly handled
+    // If the new invoice has icon_data, use it (new image uploaded)
+    // If not, preserve the existing icon_data from the stored invoice
+    if (!invoice.icon_data) {
       invoice.icon_data = invoices[index].icon_data;
+    }
+    
+    // Also ensure icon_name is preserved if not provided
+    if (!invoice.icon_name && invoices[index].icon_name) {
+      invoice.icon_name = invoices[index].icon_name;
     }
     
     invoices[index] = invoice;
@@ -190,7 +197,8 @@ export const importInvoiceSettings = (settings: Record<string, any>): Invoice =>
       contact_number: settings.contact_number || "",
       column_widths: settings.column_widths || [2.5, 3.5],
       font_name: settings.font_name || "Calibri",
-      icon_name: settings.icon_name || ""
+      icon_name: settings.icon_name || "",
+      icon_data: settings.icon_data || null
     };
 
     toast.success("Settings imported successfully");

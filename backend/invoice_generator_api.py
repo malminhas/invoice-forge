@@ -194,7 +194,7 @@ See the Schema section below for the required and optional fields.
     version="1.0.0",
     contact={
         "name": "Invoice Generator Support",
-        "email": "support@example.com",
+        "email": "mal@malm.co.uk",
     },
     license_info={
         "name": "MIT License",

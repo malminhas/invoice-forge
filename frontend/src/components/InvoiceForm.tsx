@@ -56,15 +56,15 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   
   useEffect(() => {
     if (initialData) {
+      // Set all initial data
+      setFormData(prev => ({
+        ...prev,
+        ...initialData
+      }));
+      
+      // Set image preview if icon_data exists
       if (initialData.icon_data) {
         setImagePreview(initialData.icon_data);
-      }
-      if (initialData.icon_name) {
-        setFormData(prev => ({
-          ...prev,
-          icon_name: initialData.icon_name,
-          icon_data: initialData.icon_data
-        }));
       }
     }
   }, [initialData]);
